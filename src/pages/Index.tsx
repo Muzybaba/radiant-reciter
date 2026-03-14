@@ -57,6 +57,11 @@ const Index = () => {
                 text={verse.text}
                 isMistake={currentMistakes.includes(verse.number)}
                 onTap={() => handleMistake(verse.number)}
+                onAutoDetect={(isMistake) => {
+                  if (isMistake && !currentMistakes.includes(verse.number)) {
+                    handleMistake(verse.number);
+                  }
+                }}
               />
             ))}
           </motion.div>
