@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        arabic: ['Amiri', 'serif'],
+        ui: ['Geist', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -46,6 +50,11 @@ export default {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+        },
+        mistake: {
+          bg: "hsl(var(--mistake-bg))",
+          border: "hsl(var(--mistake-border))",
+          text: "hsl(var(--mistake-text))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
