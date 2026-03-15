@@ -18,7 +18,7 @@ const VerseCard = ({ number, text, isMistake, isActive, onTap }: VerseCardProps)
           isMistake
             ? "bg-mistake-bg border-mistake-border"
             : isActive
-            ? "bg-primary/5 border-primary/20"
+            ? "bg-white dark:bg-white/10 border-primary/30 shadow-md"
             : "bg-transparent border-transparent hover:bg-accent hover:border-border"
         }`}
       dir="rtl"
