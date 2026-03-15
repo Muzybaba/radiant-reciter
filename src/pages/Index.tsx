@@ -13,6 +13,7 @@ const Index = () => {
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
   const [activeVerseIndex, setActiveVerseIndex] = useState(0);
   const [isReciting, setIsReciting] = useState(false);
+  const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
