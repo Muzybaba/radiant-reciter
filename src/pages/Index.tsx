@@ -123,14 +123,15 @@ const Index = () => {
             className="space-y-2"
           >
             {activeSurah.verses.map((verse, idx) => (
-              <VerseCard
-                key={verse.number}
-                number={verse.number}
-                text={verse.text}
-                isMistake={currentMistakes.includes(verse.number)}
-                isActive={isReciting && idx === activeVerseIndex}
-                onTap={() => handleMistake(verse.number)}
-              />
+              <div key={verse.number} ref={(el) => { verseRefs.current[idx] = el; }}>
+                <VerseCard
+                  number={verse.number}
+                  text={verse.text}
+                  isMistake={currentMistakes.includes(verse.number)}
+                  isActive={isReciting && idx === activeVerseIndex}
+                  onTap={() => handleMistake(verse.number)}
+                />
+              </div>
             ))}
           </motion.div>
         </AnimatePresence>
