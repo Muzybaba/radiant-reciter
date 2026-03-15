@@ -55,6 +55,15 @@ const Index = () => {
     onResult: handleResult,
   });
 
+  useEffect(() => {
+    if (isReciting && verseRefs.current[activeVerseIndex]) {
+      verseRefs.current[activeVerseIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [activeVerseIndex, isReciting]);
+
   const handleReciteToggle = () => {
     if (isListening) {
       stop();
