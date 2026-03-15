@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Mic, MicOff } from "lucide-react";
 import { surahs } from "@/data/surahs";
@@ -13,6 +13,7 @@ const Index = () => {
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
   const [activeVerseIndex, setActiveVerseIndex] = useState(0);
   const [isReciting, setIsReciting] = useState(false);
+  const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
@@ -53,6 +54,15 @@ const Index = () => {
     continuous: true,
     onResult: handleResult,
   });
+
+  useEffect(() => {
+    if (isReciting && verseRefs.current[activeVerseIndex]) {
+      verseRefs.current[activeVerseIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [activeVerseIndex, isReciting]);
 
   const handleReciteToggle = () => {
     if (isListening) {
@@ -122,14 +132,15 @@ const Index = () => {
             className="space-y-2"
           >
             {activeSurah.verses.map((verse, idx) => (
-              <VerseCard
-                key={verse.number}
-                number={verse.number}
-                text={verse.text}
-                isMistake={currentMistakes.includes(verse.number)}
-                isActive={isReciting && idx === activeVerseIndex}
-                onTap={() => handleMistake(verse.number)}
-              />
+              <div key={verse.number} ref={(el) => { verseRefs.current[idx] = el; }}>
+                <VerseCard
+                  number={verse.number}
+                  text={verse.text}
+                  isMistake={currentMistakes.includes(verse.number)}
+                  isActive={isReciting && idx === activeVerseIndex}
+                  onTap={() => handleMistake(verse.number)}
+                />
+              </div>
             ))}
           </motion.div>
         </AnimatePresence>
