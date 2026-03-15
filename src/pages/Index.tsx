@@ -27,32 +27,51 @@ const Index = () => {
     });
   }, [activeSurahId]);
 
-  const handleResult = useCallback(
-    (transcript: string) => {
+  const advanceVerse = useCallback(
+    (transcript: string, threshold: number) => {
       const idx = activeVerseIndexRef.current;
       const verse = activeSurah.verses[idx];
-      if (!verse) return;
+      if (!verse) return false;
 
       const score = compareTexts(transcript, verse.text);
+
+      if (score < threshold) {
+        return false;
+      }
 
       if (score < 0.4) {
         markMistake(verse.number);
       }
 
-      // Move to next verse
       if (idx < activeSurah.verses.length - 1) {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
       }
+      return true;
     },
     [activeSurah, markMistake]
+  );
+
+  const handleResult = useCallback(
+    (transcript: string) => {
+      advanceVerse(transcript, 0.4);
+    },
+    [advanceVerse]
+  );
+
+  const handleInterim = useCallback(
+    (transcript: string) => {
+      advanceVerse(transcript, 0.6);
+    },
+    [advanceVerse]
   );
 
   const { isListening, isSupported, start, stop } = useSpeechRecognition({
     lang: "ar",
     continuous: true,
     onResult: handleResult,
+    onInterim: handleInterim,
   });
 
   useEffect(() => {

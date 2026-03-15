@@ -53,15 +53,15 @@ export function useSpeechRecognition({
       }
 
       if (finalTranscript) {
-        fullTranscriptRef.current += " " + finalTranscript;
-        const full = fullTranscriptRef.current.trim();
-        setTranscript(full);
-        onResult?.(full);
+        const segment = finalTranscript.trim();
+        setTranscript(segment);
+        onResult?.(segment);
+        // Reset so next segment starts fresh
+        fullTranscriptRef.current = "";
       }
 
       if (interimTranscript) {
-        const combined = (fullTranscriptRef.current + " " + interimTranscript).trim();
-        onInterim?.(combined);
+        onInterim?.(interimTranscript.trim());
       }
     };
 
