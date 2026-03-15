@@ -17,9 +17,9 @@ export function useSpeechRecognition({
 }: UseSpeechRecognitionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
-  const [isSupported] = useState(
-    () => "webkitSpeechRecognition" in window || "SpeechRecognition" in window
-  );
+  const isSupported =
+    typeof window !== "undefined" &&
+    ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
   const recognitionRef = useRef<any>(null);
   const fullTranscriptRef = useRef("");
 
