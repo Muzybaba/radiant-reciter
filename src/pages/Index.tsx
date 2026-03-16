@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, X } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import SurahSelector from "@/components/SurahSelector";
 import VerseCard from "@/components/VerseCard";
+import VerseDiff from "@/components/VerseDiff";
 import MistakeSummary from "@/components/MistakeSummary";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
-import { compareTexts } from "@/lib/arabic-compare";
+import { compareTexts, diffWords, type WordDiff } from "@/lib/arabic-compare";
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
@@ -14,7 +15,10 @@ const Index = () => {
   const [activeVerseIndex, setActiveVerseIndex] = useState(0);
   const [isReciting, setIsReciting] = useState(false);
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
+  const [showDiff, setShowDiff] = useState(false);
+  const [verseDiffs, setVerseDiffs] = useState<Record<number, WordDiff[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const verseTranscripts = useRef<Record<number, string>>({});
 
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
@@ -28,11 +32,28 @@ const Index = () => {
     });
   }, [activeSurahId]);
 
+  const finishRecitation = useCallback(() => {
+    setIsReciting(false);
+    // Build diffs from stored transcripts
+    const diffs: Record<number, WordDiff[]> = {};
+    activeSurah.verses.forEach((verse, idx) => {
+      const transcript = verseTranscripts.current[idx] || "";
+      if (transcript) {
+        diffs[idx] = diffWords(transcript, verse.text);
+      }
+    });
+    setVerseDiffs(diffs);
+    setShowDiff(true);
+  }, [activeSurah]);
+
   const advanceVerse = useCallback(
     (transcript: string, threshold: number) => {
       const idx = activeVerseIndexRef.current;
       const verse = activeSurah.verses[idx];
       if (!verse) return false;
+
+      // Accumulate transcript for this verse
+      verseTranscripts.current[idx] = transcript;
 
       const score = compareTexts(transcript, verse.text);
 
@@ -40,12 +61,10 @@ const Index = () => {
         return false;
       }
 
-      // Mark as mistake if score is low, otherwise mark as completed successfully
       if (score < 0.5) {
         markMistake(verse.number);
       }
 
-      // Mark current verse as completed (whether mistake or success)
       setCompletedVerses((prev) => new Set(prev).add(idx));
 
       if (idx < activeSurah.verses.length - 1) {
@@ -53,12 +72,11 @@ const Index = () => {
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
       } else {
-        // Finished the whole surah
-        setIsReciting(false);
+        finishRecitation();
       }
       return true;
     },
-    [activeSurah, markMistake]
+    [activeSurah, markMistake, finishRecitation]
   );
 
   const handleResult = useCallback(
@@ -94,11 +112,14 @@ const Index = () => {
   const handleReciteToggle = () => {
     if (isListening) {
       stop();
-      setIsReciting(false);
+      finishRecitation();
     } else {
       setActiveVerseIndex(0);
       activeVerseIndexRef.current = 0;
       setCompletedVerses(new Set());
+      setShowDiff(false);
+      setVerseDiffs({});
+      verseTranscripts.current = {};
       setIsReciting(true);
       start();
     }
@@ -117,6 +138,8 @@ const Index = () => {
   const handleReset = () => {
     setMistakes((prev) => ({ ...prev, [activeSurahId]: [] }));
     setCompletedVerses(new Set());
+    setShowDiff(false);
+    setVerseDiffs({});
   };
 
   const getVerseStatus = (idx: number, verseNumber: number): "default" | "active" | "mistake" | "success" => {
@@ -125,6 +148,10 @@ const Index = () => {
     if (completedVerses.has(idx)) return "success";
     return "default";
   };
+
+  const diffEntries = Object.entries(verseDiffs).filter(
+    ([, words]) => words.some((w) => w.status === "missed")
+  );
 
   return (
     <div className="min-h-screen">
@@ -156,6 +183,34 @@ const Index = () => {
             </button>
           </div>
         )}
+
+        {/* Diff Summary */}
+        <AnimatePresence>
+          {showDiff && diffEntries.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-8 overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="label-ui text-foreground">Word-by-word review</h2>
+                <button onClick={() => setShowDiff(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {diffEntries.map(([idxStr, words]) => {
+                  const idx = Number(idxStr);
+                  const verse = activeSurah.verses[idx];
+                  return verse ? (
+                    <VerseDiff key={idx} number={verse.number} words={words} />
+                  ) : null;
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Verses */}
         <AnimatePresence mode="wait">
