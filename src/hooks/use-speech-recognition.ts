@@ -21,7 +21,14 @@ export function useSpeechRecognition({
     typeof window !== "undefined" &&
     ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
   const recognitionRef = useRef<any>(null);
-  const fullTranscriptRef = useRef("");
+  const onResultRef = useRef(onResult);
+  const onInterimRef = useRef(onInterim);
+  const onEndRef = useRef(onEnd);
+
+  // Keep refs fresh to avoid stale closures
+  onResultRef.current = onResult;
+  onInterimRef.current = onInterim;
+  onEndRef.current = onEnd;
 
   const start = useCallback(() => {
     if (!isSupported) return;
@@ -34,8 +41,7 @@ export function useSpeechRecognition({
     recognition.lang = lang;
     recognition.continuous = continuous;
     recognition.interimResults = true;
-
-    fullTranscriptRef.current = "";
+    recognition.maxAlternatives = 1;
 
     recognition.onstart = () => setIsListening(true);
 
@@ -43,7 +49,7 @@ export function useSpeechRecognition({
       let interimTranscript = "";
       let finalTranscript = "";
 
-      for (let i = 0; i < event.results.length; i++) {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
           finalTranscript += result[0].transcript;
@@ -55,28 +61,28 @@ export function useSpeechRecognition({
       if (finalTranscript) {
         const segment = finalTranscript.trim();
         setTranscript(segment);
-        onResult?.(segment);
-        // Reset so next segment starts fresh
-        fullTranscriptRef.current = "";
+        onResultRef.current?.(segment);
       }
 
       if (interimTranscript) {
-        onInterim?.(interimTranscript.trim());
+        onInterimRef.current?.(interimTranscript.trim());
       }
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (e: any) => {
+      // Don't stop on no-speech errors, just keep listening
+      if (e.error === "no-speech") return;
       setIsListening(false);
     };
 
     recognition.onend = () => {
       setIsListening(false);
-      onEnd?.();
+      onEndRef.current?.();
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [isSupported, lang, continuous, onResult, onInterim, onEnd]);
+  }, [isSupported, lang, continuous]);
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop();

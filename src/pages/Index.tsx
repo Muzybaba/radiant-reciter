@@ -13,6 +13,7 @@ const Index = () => {
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
   const [activeVerseIndex, setActiveVerseIndex] = useState(0);
   const [isReciting, setIsReciting] = useState(false);
+  const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
@@ -39,14 +40,21 @@ const Index = () => {
         return false;
       }
 
-      if (score < 0.4) {
+      // Mark as mistake if score is low, otherwise mark as completed successfully
+      if (score < 0.5) {
         markMistake(verse.number);
       }
+
+      // Mark current verse as completed (whether mistake or success)
+      setCompletedVerses((prev) => new Set(prev).add(idx));
 
       if (idx < activeSurah.verses.length - 1) {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
+      } else {
+        // Finished the whole surah
+        setIsReciting(false);
       }
       return true;
     },
@@ -55,14 +63,14 @@ const Index = () => {
 
   const handleResult = useCallback(
     (transcript: string) => {
-      advanceVerse(transcript, 0.4);
+      advanceVerse(transcript, 0.35);
     },
     [advanceVerse]
   );
 
   const handleInterim = useCallback(
     (transcript: string) => {
-      advanceVerse(transcript, 0.6);
+      advanceVerse(transcript, 0.55);
     },
     [advanceVerse]
   );
@@ -90,6 +98,7 @@ const Index = () => {
     } else {
       setActiveVerseIndex(0);
       activeVerseIndexRef.current = 0;
+      setCompletedVerses(new Set());
       setIsReciting(true);
       start();
     }
@@ -107,6 +116,14 @@ const Index = () => {
 
   const handleReset = () => {
     setMistakes((prev) => ({ ...prev, [activeSurahId]: [] }));
+    setCompletedVerses(new Set());
+  };
+
+  const getVerseStatus = (idx: number, verseNumber: number): "default" | "active" | "mistake" | "success" => {
+    if (isReciting && idx === activeVerseIndex) return "active";
+    if (currentMistakes.includes(verseNumber)) return "mistake";
+    if (completedVerses.has(idx)) return "success";
+    return "default";
   };
 
   return (
@@ -155,8 +172,7 @@ const Index = () => {
                 <VerseCard
                   number={verse.number}
                   text={verse.text}
-                  isMistake={currentMistakes.includes(verse.number)}
-                  isActive={isReciting && idx === activeVerseIndex}
+                  status={getVerseStatus(idx, verse.number)}
                   onTap={() => handleMistake(verse.number)}
                 />
               </div>
