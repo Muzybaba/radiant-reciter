@@ -18,6 +18,7 @@ const Index = () => {
   const [showDiff, setShowDiff] = useState(false);
   const [verseDiffs, setVerseDiffs] = useState<Record<number, WordDiff[]>>({});
   const [activeWordStatuses, setActiveWordStatuses] = useState<WordStatus[]>([]);
+  const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
 
