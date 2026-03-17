@@ -56,6 +56,10 @@ const Index = () => {
       // Accumulate transcript for this verse
       verseTranscripts.current[idx] = transcript;
 
+      // Update real-time word statuses
+      const statuses = progressiveWordStatus(transcript, verse.text);
+      setActiveWordStatuses(statuses);
+
       const score = compareTexts(transcript, verse.text);
 
       if (score < threshold) {
@@ -72,6 +76,7 @@ const Index = () => {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
+        setActiveWordStatuses([]); // Reset for next verse
       } else {
         finishRecitation();
       }
