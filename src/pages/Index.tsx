@@ -7,7 +7,7 @@ import VerseCard from "@/components/VerseCard";
 import VerseDiff from "@/components/VerseDiff";
 import MistakeSummary from "@/components/MistakeSummary";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
-import { compareTexts, diffWords, type WordDiff } from "@/lib/arabic-compare";
+import { compareTexts, diffWords, progressiveWordStatus, type WordDiff, type WordStatus } from "@/lib/arabic-compare";
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
