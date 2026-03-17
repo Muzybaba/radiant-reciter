@@ -51,7 +51,7 @@ export function compareTexts(spoken: string, correct: string): number {
 }
 
 export type WordDiff = { word: string; status: "correct" | "missed" };
-export type WordStatus = "default" | "correct" | "missed";
+export type WordStatus = "default" | "correct" | "missed" | "current";
 
 /**
  * Returns per-word diff of the correct verse against spoken text.
