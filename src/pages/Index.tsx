@@ -241,7 +241,11 @@ const Index = () => {
                   number={verse.number}
                   text={verse.text}
                   status={getVerseStatus(idx, verse.number)}
-                  wordStatuses={isReciting && idx === activeVerseIndex ? activeWordStatuses : undefined}
+                  wordStatuses={
+                    isReciting && idx === activeVerseIndex
+                      ? activeWordStatuses
+                      : verseWordStatuses[idx]
+                  }
                   onTap={() => handleMistake(verse.number)}
                 />
               </div>
