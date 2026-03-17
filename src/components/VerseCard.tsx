@@ -26,15 +26,15 @@ const numberStyles: Record<VerseStatus, string> = {
 };
 
 const wordColorMap: Record<WordStatus, string> = {
-  default: "text-muted-foreground/40",
+  default: "",
   correct: "text-[hsl(var(--success-text))]",
   missed: "text-[hsl(var(--mistake-text))]",
-  current: "text-primary bg-primary/10 rounded px-1 -mx-1",
+  current: "text-primary bg-primary/15 rounded-sm px-1.5 py-0.5 -mx-0.5",
 };
 
 const VerseCard = ({ number, text, status, wordStatuses, onTap }: VerseCardProps) => {
   const words = text.split(/\s+/);
-  const useWordHighlight = status === "active" && wordStatuses && wordStatuses.length > 0;
+  const hasWordStatuses = wordStatuses && wordStatuses.length > 0;
 
   return (
     <motion.div
@@ -48,24 +48,21 @@ const VerseCard = ({ number, text, status, wordStatuses, onTap }: VerseCardProps
           {number}
         </span>
         <button onClick={onTap} className="font-arabic text-4xl leading-[2.5] flex-1 text-right">
-          {useWordHighlight ? (
-            <p className="flex flex-wrap gap-x-2">
-              {words.map((word, i) => (
+          <p className="flex flex-wrap gap-x-2">
+            {words.map((word, i) => {
+              const ws = hasWordStatuses ? (wordStatuses[i] || "default") : "default";
+              // For active verse, dim upcoming words
+              const dimUpcoming = status === "active" && hasWordStatuses && ws === "default";
+              return (
                 <span
                   key={i}
-                  className={`transition-colors duration-200 ${wordColorMap[wordStatuses[i] || "default"]}`}
+                  className={`transition-colors duration-150 ${wordColorMap[ws]} ${dimUpcoming ? "opacity-40" : ""}`}
                 >
                   {word}
                 </span>
-              ))}
-            </p>
-          ) : (
-            <p className={
-              status === "mistake" ? "text-[hsl(var(--mistake-text))]"
-              : status === "success" ? "text-[hsl(var(--success-text))]"
-              : "text-foreground"
-            }>{text}</p>
-          )}
+              );
+            })}
+          </p>
         </button>
       </div>
     </motion.div>

@@ -18,6 +18,7 @@ const Index = () => {
   const [showDiff, setShowDiff] = useState(false);
   const [verseDiffs, setVerseDiffs] = useState<Record<number, WordDiff[]>>({});
   const [activeWordStatuses, setActiveWordStatuses] = useState<WordStatus[]>([]);
+  const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
 
@@ -72,11 +73,15 @@ const Index = () => {
 
       setCompletedVerses((prev) => new Set(prev).add(idx));
 
+      // Store final word statuses for this completed verse
+      const finalStatuses: WordStatus[] = statuses.map(s => s === "current" ? "default" : s);
+      setVerseWordStatuses(prev => ({ ...prev, [idx]: finalStatuses }));
+
       if (idx < activeSurah.verses.length - 1) {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
-        setActiveWordStatuses([]); // Reset for next verse
+        setActiveWordStatuses([]);
       } else {
         finishRecitation();
       }
@@ -124,6 +129,7 @@ const Index = () => {
       activeVerseIndexRef.current = 0;
       setCompletedVerses(new Set());
       setActiveWordStatuses([]);
+      setVerseWordStatuses({});
       setShowDiff(false);
       setVerseDiffs({});
       verseTranscripts.current = {};
@@ -235,7 +241,11 @@ const Index = () => {
                   number={verse.number}
                   text={verse.text}
                   status={getVerseStatus(idx, verse.number)}
-                  wordStatuses={isReciting && idx === activeVerseIndex ? activeWordStatuses : undefined}
+                  wordStatuses={
+                    isReciting && idx === activeVerseIndex
+                      ? activeWordStatuses
+                      : verseWordStatuses[idx]
+                  }
                   onTap={() => handleMistake(verse.number)}
                 />
               </div>
