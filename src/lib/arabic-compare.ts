@@ -122,32 +122,38 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
   // Greedy sequential match: walk through correct words, try to match spoken words in order
   const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
   let spokenIdx = 0;
+  let lastMatchedCorrectIdx = -1;
 
   for (let ci = 0; ci < wordsCorrect.length; ci++) {
     if (spokenIdx >= wordsSpoken.length) break;
 
-    // Check if current correct word matches current spoken word
     if (wordsCorrect[ci] === wordsSpoken[spokenIdx]) {
       statuses[ci] = "correct";
+      lastMatchedCorrectIdx = ci;
       spokenIdx++;
     } else {
-      // Look ahead in spoken words (max 2) to see if they skipped/mispronounced
       let found = false;
       for (let look = 1; look <= 2 && spokenIdx + look < wordsSpoken.length; look++) {
         if (wordsCorrect[ci] === wordsSpoken[spokenIdx + look]) {
-          // Words before this were extra/wrong — mark current correct word as matched
           statuses[ci] = "correct";
+          lastMatchedCorrectIdx = ci;
           spokenIdx += look + 1;
           found = true;
           break;
         }
       }
       if (!found) {
-        // This correct word was missed/mispronounced
         statuses[ci] = "missed";
+        lastMatchedCorrectIdx = ci;
         spokenIdx++;
       }
     }
+  }
+
+  // Mark the next unprocessed word as "current" (the reading pointer)
+  const nextIdx = lastMatchedCorrectIdx + 1;
+  if (nextIdx < statuses.length) {
+    statuses[nextIdx] = "current";
   }
 
   return statuses;
