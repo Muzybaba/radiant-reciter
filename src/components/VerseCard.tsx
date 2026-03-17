@@ -26,9 +26,10 @@ const numberStyles: Record<VerseStatus, string> = {
 };
 
 const wordColorMap: Record<WordStatus, string> = {
-  default: "text-foreground",
+  default: "text-muted-foreground/40",
   correct: "text-[hsl(var(--success-text))]",
   missed: "text-[hsl(var(--mistake-text))]",
+  current: "text-primary bg-primary/10 rounded px-1 -mx-1",
 };
 
 const VerseCard = ({ number, text, status, wordStatuses, onTap }: VerseCardProps) => {
