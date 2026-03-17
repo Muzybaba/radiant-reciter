@@ -123,6 +123,7 @@ const Index = () => {
       setActiveVerseIndex(0);
       activeVerseIndexRef.current = 0;
       setCompletedVerses(new Set());
+      setActiveWordStatuses([]);
       setShowDiff(false);
       setVerseDiffs({});
       verseTranscripts.current = {};
