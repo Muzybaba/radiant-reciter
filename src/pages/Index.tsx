@@ -7,7 +7,7 @@ import VerseCard from "@/components/VerseCard";
 import VerseDiff from "@/components/VerseDiff";
 import MistakeSummary from "@/components/MistakeSummary";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
-import { compareTexts, diffWords, type WordDiff } from "@/lib/arabic-compare";
+import { compareTexts, diffWords, progressiveWordStatus, type WordDiff, type WordStatus } from "@/lib/arabic-compare";
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
@@ -17,6 +17,7 @@ const Index = () => {
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
   const [showDiff, setShowDiff] = useState(false);
   const [verseDiffs, setVerseDiffs] = useState<Record<number, WordDiff[]>>({});
+  const [activeWordStatuses, setActiveWordStatuses] = useState<WordStatus[]>([]);
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
 
@@ -55,6 +56,10 @@ const Index = () => {
       // Accumulate transcript for this verse
       verseTranscripts.current[idx] = transcript;
 
+      // Update real-time word statuses
+      const statuses = progressiveWordStatus(transcript, verse.text);
+      setActiveWordStatuses(statuses);
+
       const score = compareTexts(transcript, verse.text);
 
       if (score < threshold) {
@@ -71,6 +76,7 @@ const Index = () => {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
+        setActiveWordStatuses([]); // Reset for next verse
       } else {
         finishRecitation();
       }
@@ -117,6 +123,7 @@ const Index = () => {
       setActiveVerseIndex(0);
       activeVerseIndexRef.current = 0;
       setCompletedVerses(new Set());
+      setActiveWordStatuses([]);
       setShowDiff(false);
       setVerseDiffs({});
       verseTranscripts.current = {};
@@ -228,6 +235,7 @@ const Index = () => {
                   number={verse.number}
                   text={verse.text}
                   status={getVerseStatus(idx, verse.number)}
+                  wordStatuses={isReciting && idx === activeVerseIndex ? activeWordStatuses : undefined}
                   onTap={() => handleMistake(verse.number)}
                 />
               </div>

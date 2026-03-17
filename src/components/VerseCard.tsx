@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import type { WordStatus } from "@/lib/arabic-compare";
 
 type VerseStatus = "default" | "active" | "mistake" | "success";
 
@@ -6,6 +7,7 @@ interface VerseCardProps {
   number: number;
   text: string;
   status: VerseStatus;
+  wordStatuses?: WordStatus[];
   onTap: () => void;
 }
 
@@ -16,13 +18,6 @@ const statusStyles: Record<VerseStatus, string> = {
   success: "bg-[hsl(var(--success-bg))] border-[hsl(var(--success-border))]",
 };
 
-const textStyles: Record<VerseStatus, string> = {
-  default: "text-foreground",
-  active: "text-foreground",
-  mistake: "text-[hsl(var(--mistake-text))]",
-  success: "text-[hsl(var(--success-text))]",
-};
-
 const numberStyles: Record<VerseStatus, string> = {
   default: "",
   active: "text-primary",
@@ -30,7 +25,16 @@ const numberStyles: Record<VerseStatus, string> = {
   success: "text-[hsl(var(--success-text))]",
 };
 
-const VerseCard = ({ number, text, status, onTap }: VerseCardProps) => {
+const wordColorMap: Record<WordStatus, string> = {
+  default: "text-foreground",
+  correct: "text-[hsl(var(--success-text))]",
+  missed: "text-[hsl(var(--mistake-text))]",
+};
+
+const VerseCard = ({ number, text, status, wordStatuses, onTap }: VerseCardProps) => {
+  const words = text.split(/\s+/);
+  const useWordHighlight = status === "active" && wordStatuses && wordStatuses.length > 0;
+
   return (
     <motion.div
       whileTap={{ scale: 0.98 }}
@@ -43,7 +47,24 @@ const VerseCard = ({ number, text, status, onTap }: VerseCardProps) => {
           {number}
         </span>
         <button onClick={onTap} className="font-arabic text-4xl leading-[2.5] flex-1 text-right">
-          <p className={textStyles[status]}>{text}</p>
+          {useWordHighlight ? (
+            <p className="flex flex-wrap gap-x-2">
+              {words.map((word, i) => (
+                <span
+                  key={i}
+                  className={`transition-colors duration-200 ${wordColorMap[wordStatuses[i] || "default"]}`}
+                >
+                  {word}
+                </span>
+              ))}
+            </p>
+          ) : (
+            <p className={
+              status === "mistake" ? "text-[hsl(var(--mistake-text))]"
+              : status === "success" ? "text-[hsl(var(--success-text))]"
+              : "text-foreground"
+            }>{text}</p>
+          )}
         </button>
       </div>
     </motion.div>

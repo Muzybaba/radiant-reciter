@@ -51,6 +51,7 @@ export function compareTexts(spoken: string, correct: string): number {
 }
 
 export type WordDiff = { word: string; status: "correct" | "missed" };
+export type WordStatus = "default" | "correct" | "missed";
 
 /**
  * Returns per-word diff of the correct verse against spoken text.
@@ -75,7 +76,6 @@ export function diffWords(spoken: string, correct: string): WordDiff[] {
 
   const dp = lcsTable(wordsSpoken, wordsCorrect);
 
-  // Backtrack to find which correct words were matched
   const matchedCorrectIndices = new Set<number>();
   let i = wordsSpoken.length;
   let j = wordsCorrect.length;
@@ -95,4 +95,60 @@ export function diffWords(spoken: string, correct: string): WordDiff[] {
     word,
     status: matchedCorrectIndices.has(idx) ? "correct" : "missed",
   }));
+}
+
+/**
+ * Progressive word-by-word status for real-time highlighting.
+ * Compares spoken words against verse words sequentially.
+ * Words matched so far = "correct", spoken but not matched = "missed", not yet reached = "default".
+ */
+export function progressiveWordStatus(spoken: string, correct: string): WordStatus[] {
+  const aNorm = normalizeArabic(spoken);
+  const bNorm = normalizeArabic(correct);
+
+  const correctOriginalWords = correct
+    .replace(/\u0640/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ");
+
+  if (!aNorm || !bNorm) {
+    return correctOriginalWords.map(() => "default");
+  }
+
+  const wordsSpoken = aNorm.split(" ");
+  const wordsCorrect = bNorm.split(" ");
+
+  // Greedy sequential match: walk through correct words, try to match spoken words in order
+  const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
+  let spokenIdx = 0;
+
+  for (let ci = 0; ci < wordsCorrect.length; ci++) {
+    if (spokenIdx >= wordsSpoken.length) break;
+
+    // Check if current correct word matches current spoken word
+    if (wordsCorrect[ci] === wordsSpoken[spokenIdx]) {
+      statuses[ci] = "correct";
+      spokenIdx++;
+    } else {
+      // Look ahead in spoken words (max 2) to see if they skipped/mispronounced
+      let found = false;
+      for (let look = 1; look <= 2 && spokenIdx + look < wordsSpoken.length; look++) {
+        if (wordsCorrect[ci] === wordsSpoken[spokenIdx + look]) {
+          // Words before this were extra/wrong — mark current correct word as matched
+          statuses[ci] = "correct";
+          spokenIdx += look + 1;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        // This correct word was missed/mispronounced
+        statuses[ci] = "missed";
+        spokenIdx++;
+      }
+    }
+  }
+
+  return statuses;
 }
