@@ -129,6 +129,7 @@ const Index = () => {
       activeVerseIndexRef.current = 0;
       setCompletedVerses(new Set());
       setActiveWordStatuses([]);
+      setVerseWordStatuses({});
       setShowDiff(false);
       setVerseDiffs({});
       verseTranscripts.current = {};
