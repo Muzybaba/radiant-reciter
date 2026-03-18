@@ -103,7 +103,6 @@ export function diffWords(spoken: string, correct: string): WordDiff[] {
  * Words matched so far = "correct", spoken but not matched = "missed", not yet reached = "default".
  */
 export function progressiveWordStatus(spoken: string, correct: string): WordStatus[] {
-  const aNorm = normalizeArabic(spoken);
   const bNorm = normalizeArabic(correct);
 
   const correctOriginalWords = correct
@@ -112,8 +111,17 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
     .trim()
     .split(" ");
 
-  if (!aNorm || !bNorm) {
+  if (!bNorm) {
     return correctOriginalWords.map(() => "default");
+  }
+
+  const aNorm = normalizeArabic(spoken);
+
+  // No spoken words yet — mark first word as current pointer
+  if (!aNorm) {
+    const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
+    statuses[0] = "current";
+    return statuses;
   }
 
   const wordsSpoken = aNorm.split(" ");
@@ -132,8 +140,9 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
       lastMatchedCorrectIdx = ci;
       spokenIdx++;
     } else {
+      // Look ahead in spoken words to handle insertions
       let found = false;
-      for (let look = 1; look <= 2 && spokenIdx + look < wordsSpoken.length; look++) {
+      for (let look = 1; look <= 3 && spokenIdx + look < wordsSpoken.length; look++) {
         if (wordsCorrect[ci] === wordsSpoken[spokenIdx + look]) {
           statuses[ci] = "correct";
           lastMatchedCorrectIdx = ci;
@@ -143,9 +152,22 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
         }
       }
       if (!found) {
-        statuses[ci] = "missed";
-        lastMatchedCorrectIdx = ci;
-        spokenIdx++;
+        // Also look ahead in correct words to handle skipped words
+        let skipped = false;
+        for (let look = 1; look <= 2 && ci + look < wordsCorrect.length; look++) {
+          if (wordsCorrect[ci + look] === wordsSpoken[spokenIdx]) {
+            // Mark current as missed, don't advance spokenIdx
+            statuses[ci] = "missed";
+            lastMatchedCorrectIdx = ci;
+            skipped = true;
+            break;
+          }
+        }
+        if (!skipped) {
+          statuses[ci] = "missed";
+          lastMatchedCorrectIdx = ci;
+          spokenIdx++;
+        }
       }
     }
   }
