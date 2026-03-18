@@ -243,7 +243,7 @@ const Index = () => {
                   status={getVerseStatus(idx, verse.number)}
                   wordStatuses={
                     isReciting && idx === activeVerseIndex
-                      ? activeWordStatuses
+                      ? (activeWordStatuses.length > 0 ? activeWordStatuses : progressiveWordStatus("", verse.text))
                       : verseWordStatuses[idx]
                   }
                   onTap={() => handleMistake(verse.number)}
