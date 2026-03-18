@@ -1,13 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, MicOff, X } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import SurahSelector from "@/components/SurahSelector";
 import VerseCard from "@/components/VerseCard";
-import VerseDiff from "@/components/VerseDiff";
 import MistakeSummary from "@/components/MistakeSummary";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
-import { compareTexts, diffWords, progressiveWordStatus, type WordDiff, type WordStatus } from "@/lib/arabic-compare";
+import { compareTexts, progressiveWordStatus, type WordStatus } from "@/lib/arabic-compare";
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
@@ -15,12 +14,12 @@ const Index = () => {
   const [activeVerseIndex, setActiveVerseIndex] = useState(0);
   const [isReciting, setIsReciting] = useState(false);
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
-  const [showDiff, setShowDiff] = useState(false);
-  const [verseDiffs, setVerseDiffs] = useState<Record<number, WordDiff[]>>({});
   const [activeWordStatuses, setActiveWordStatuses] = useState<WordStatus[]>([]);
   const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
+  const lastTranscriptTime = useRef<number>(0);
+  const stallCooldown = useRef<boolean>(false);
 
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
@@ -36,17 +35,7 @@ const Index = () => {
 
   const finishRecitation = useCallback(() => {
     setIsReciting(false);
-    // Build diffs from stored transcripts
-    const diffs: Record<number, WordDiff[]> = {};
-    activeSurah.verses.forEach((verse, idx) => {
-      const transcript = verseTranscripts.current[idx] || "";
-      if (transcript) {
-        diffs[idx] = diffWords(transcript, verse.text);
-      }
-    });
-    setVerseDiffs(diffs);
-    setShowDiff(true);
-  }, [activeSurah]);
+  }, []);
 
   const advanceVerse = useCallback(
     (transcript: string, threshold: number) => {
@@ -54,26 +43,20 @@ const Index = () => {
       const verse = activeSurah.verses[idx];
       if (!verse) return false;
 
-      // Accumulate transcript for this verse
       verseTranscripts.current[idx] = transcript;
+      lastTranscriptTime.current = Date.now();
 
-      // Update real-time word statuses
       const statuses = progressiveWordStatus(transcript, verse.text);
       setActiveWordStatuses(statuses);
 
       const score = compareTexts(transcript, verse.text);
 
-      if (score < threshold) {
-        return false;
-      }
+      if (score < threshold) return false;
 
-      if (score < 0.5) {
-        markMistake(verse.number);
-      }
+      if (score < 0.5) markMistake(verse.number);
 
       setCompletedVerses((prev) => new Set(prev).add(idx));
 
-      // Store final word statuses for this completed verse
       const finalStatuses: WordStatus[] = statuses.map(s => s === "current" ? "default" : s);
       setVerseWordStatuses(prev => ({ ...prev, [idx]: finalStatuses }));
 
@@ -92,6 +75,7 @@ const Index = () => {
 
   const handleResult = useCallback(
     (transcript: string) => {
+      lastTranscriptTime.current = Date.now();
       advanceVerse(transcript, 0.35);
     },
     [advanceVerse]
@@ -99,6 +83,7 @@ const Index = () => {
 
   const handleInterim = useCallback(
     (transcript: string) => {
+      lastTranscriptTime.current = Date.now();
       advanceVerse(transcript, 0.55);
     },
     [advanceVerse]
@@ -110,6 +95,26 @@ const Index = () => {
     onResult: handleResult,
     onInterim: handleInterim,
   });
+
+  // Stall detection: speak "أعد" if no transcript for 4 seconds
+  useEffect(() => {
+    if (!isReciting) return;
+
+    const interval = setInterval(() => {
+      if (stallCooldown.current) return;
+      const elapsed = Date.now() - lastTranscriptTime.current;
+      if (elapsed > 4000 && lastTranscriptTime.current > 0) {
+        stallCooldown.current = true;
+        const utterance = new SpeechSynthesisUtterance("أعد");
+        utterance.lang = "ar";
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+        setTimeout(() => { stallCooldown.current = false; }, 6000);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isReciting]);
 
   useEffect(() => {
     if (isReciting && verseRefs.current[activeVerseIndex]) {
@@ -130,9 +135,9 @@ const Index = () => {
       setCompletedVerses(new Set());
       setActiveWordStatuses([]);
       setVerseWordStatuses({});
-      setShowDiff(false);
-      setVerseDiffs({});
       verseTranscripts.current = {};
+      lastTranscriptTime.current = Date.now();
+      stallCooldown.current = false;
       setIsReciting(true);
       start();
     }
@@ -151,8 +156,6 @@ const Index = () => {
   const handleReset = () => {
     setMistakes((prev) => ({ ...prev, [activeSurahId]: [] }));
     setCompletedVerses(new Set());
-    setShowDiff(false);
-    setVerseDiffs({});
   };
 
   const getVerseStatus = (idx: number, verseNumber: number): "default" | "active" | "mistake" | "success" => {
@@ -162,14 +165,9 @@ const Index = () => {
     return "default";
   };
 
-  const diffEntries = Object.entries(verseDiffs).filter(
-    ([, words]) => words.some((w) => w.status === "missed")
-  );
-
   return (
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto py-[8vh] px-6">
-        {/* Header */}
         <header className="text-center space-y-6 mb-16">
           <span className="label-ui">Muraqaba</span>
           <h1 className="font-arabic text-3xl text-foreground">{activeSurah.nameArabic}</h1>
@@ -180,7 +178,6 @@ const Index = () => {
           />
         </header>
 
-        {/* Recite Button */}
         {isSupported && (
           <div className="flex justify-center mb-8">
             <button
@@ -197,35 +194,6 @@ const Index = () => {
           </div>
         )}
 
-        {/* Diff Summary */}
-        <AnimatePresence>
-          {showDiff && diffEntries.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mb-8 overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="label-ui text-foreground">Word-by-word review</h2>
-                <button onClick={() => setShowDiff(false)} className="text-muted-foreground hover:text-foreground transition-colors">
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="space-y-2">
-                {diffEntries.map(([idxStr, words]) => {
-                  const idx = Number(idxStr);
-                  const verse = activeSurah.verses[idx];
-                  return verse ? (
-                    <VerseDiff key={idx} number={verse.number} words={words} />
-                  ) : null;
-                })}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Verses */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeSurahId}
@@ -253,7 +221,6 @@ const Index = () => {
           </motion.div>
         </AnimatePresence>
 
-        {/* Footer hint */}
         <p className="text-center label-ui mt-16 opacity-50">
           {isReciting ? "Reciting... mistakes will be highlighted" : "Tap a verse to mark a mistake, or press Start Reciting"}
         </p>
