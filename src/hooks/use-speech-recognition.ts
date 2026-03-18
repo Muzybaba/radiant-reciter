@@ -24,6 +24,7 @@ export function useSpeechRecognition({
   const onResultRef = useRef(onResult);
   const onInterimRef = useRef(onInterim);
   const onEndRef = useRef(onEnd);
+  const shouldBeListeningRef = useRef(false);
 
   // Keep refs fresh to avoid stale closures
   onResultRef.current = onResult;
@@ -32,6 +33,8 @@ export function useSpeechRecognition({
 
   const start = useCallback(() => {
     if (!isSupported) return;
+
+    shouldBeListeningRef.current = true;
 
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
@@ -70,14 +73,29 @@ export function useSpeechRecognition({
     };
 
     recognition.onerror = (e: any) => {
-      // Don't stop on no-speech errors, just keep listening
       if (e.error === "no-speech") return;
+      if (e.error === "aborted") return;
       setIsListening(false);
+      shouldBeListeningRef.current = false;
     };
 
     recognition.onend = () => {
-      setIsListening(false);
-      onEndRef.current?.();
+      if (shouldBeListeningRef.current) {
+        // Auto-restart after a brief delay to prevent silent drops
+        setTimeout(() => {
+          if (shouldBeListeningRef.current) {
+            try {
+              recognition.start();
+            } catch {
+              setIsListening(false);
+              onEndRef.current?.();
+            }
+          }
+        }, 300);
+      } else {
+        setIsListening(false);
+        onEndRef.current?.();
+      }
     };
 
     recognitionRef.current = recognition;
@@ -85,6 +103,7 @@ export function useSpeechRecognition({
   }, [isSupported, lang, continuous]);
 
   const stop = useCallback(() => {
+    shouldBeListeningRef.current = false;
     recognitionRef.current?.stop();
   }, []);
 
