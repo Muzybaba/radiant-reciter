@@ -103,7 +103,7 @@ const Index = () => {
     const interval = setInterval(() => {
       if (stallCooldown.current) return;
       const elapsed = Date.now() - lastTranscriptTime.current;
-      if (elapsed > 4000 && lastTranscriptTime.current > 0) {
+      if (elapsed > 6000 && lastTranscriptTime.current > 0) {
         stallCooldown.current = true;
         const utterance = new SpeechSynthesisUtterance("أعد");
         utterance.lang = "ar";
