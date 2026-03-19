@@ -96,14 +96,14 @@ const Index = () => {
     onInterim: handleInterim,
   });
 
-  // Stall detection: speak "أعد" if no transcript for 4 seconds
+  // Stall detection: speak "أعد" if no transcript for 6 seconds
   useEffect(() => {
     if (!isReciting) return;
 
     const interval = setInterval(() => {
       if (stallCooldown.current) return;
       const elapsed = Date.now() - lastTranscriptTime.current;
-      if (elapsed > 4000 && lastTranscriptTime.current > 0) {
+      if (elapsed > 6000 && lastTranscriptTime.current > 0) {
         stallCooldown.current = true;
         const utterance = new SpeechSynthesisUtterance("أعد");
         utterance.lang = "ar";
