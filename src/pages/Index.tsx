@@ -96,7 +96,7 @@ const Index = () => {
     onInterim: handleInterim,
   });
 
-  // Stall detection: speak "أعد" if no transcript for 4 seconds
+  // Stall detection: speak "أعد" if no transcript for 6 seconds
   useEffect(() => {
     if (!isReciting) return;
 
