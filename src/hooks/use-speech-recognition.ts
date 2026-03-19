@@ -25,11 +25,17 @@ export function useSpeechRecognition({
   const onInterimRef = useRef(onInterim);
   const onEndRef = useRef(onEnd);
   const shouldBeListeningRef = useRef(false);
+  const cumulativeTranscriptRef = useRef("");
 
   // Keep refs fresh to avoid stale closures
   onResultRef.current = onResult;
   onInterimRef.current = onInterim;
   onEndRef.current = onEnd;
+
+  const reset = useCallback(() => {
+    cumulativeTranscriptRef.current = "";
+    setTranscript("");
+  }, []);
 
   const start = useCallback(() => {
     if (!isSupported) return;
@@ -63,12 +69,19 @@ export function useSpeechRecognition({
 
       if (finalTranscript) {
         const segment = finalTranscript.trim();
-        setTranscript(segment);
-        onResultRef.current?.(segment);
+        // Accumulate across restarts
+        const prev = cumulativeTranscriptRef.current;
+        const cumulative = prev ? `${prev} ${segment}` : segment;
+        cumulativeTranscriptRef.current = cumulative;
+        setTranscript(cumulative);
+        onResultRef.current?.(cumulative);
       }
 
       if (interimTranscript) {
-        onInterimRef.current?.(interimTranscript.trim());
+        // Send cumulative + current interim for matching
+        const prev = cumulativeTranscriptRef.current;
+        const combined = prev ? `${prev} ${interimTranscript.trim()}` : interimTranscript.trim();
+        onInterimRef.current?.(combined);
       }
     };
 
@@ -107,5 +120,5 @@ export function useSpeechRecognition({
     recognitionRef.current?.stop();
   }, []);
 
-  return { isListening, transcript, isSupported, start, stop };
+  return { isListening, transcript, isSupported, start, stop, reset };
 }
