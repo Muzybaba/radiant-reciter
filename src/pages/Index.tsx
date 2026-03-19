@@ -14,12 +14,14 @@ const Index = () => {
   const [activeVerseIndex, setActiveVerseIndex] = useState(0);
   const [isReciting, setIsReciting] = useState(false);
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
-  const [activeWordStatuses, setActiveWordStatuses] = useState<WordStatus[]>([]);
+  const [displayedWordStatuses, setDisplayedWordStatuses] = useState<WordStatus[]>([]);
   const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
+  const targetWordStatuses = useRef<WordStatus[]>([]);
+  const displayedIndexRef = useRef<number>(-1);
 
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
@@ -47,7 +49,8 @@ const Index = () => {
       lastTranscriptTime.current = Date.now();
 
       const statuses = progressiveWordStatus(transcript, verse.text);
-      setActiveWordStatuses(statuses);
+      // Set target statuses — the smooth interval will advance displayed statuses
+      targetWordStatuses.current = statuses;
 
       const score = compareTexts(transcript, verse.text);
 
@@ -64,7 +67,10 @@ const Index = () => {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
-        setActiveWordStatuses([]);
+        // Reset smooth pointer for new verse
+        targetWordStatuses.current = [];
+        displayedIndexRef.current = -1;
+        setDisplayedWordStatuses([]);
       } else {
         finishRecitation();
       }
@@ -89,27 +95,69 @@ const Index = () => {
     [advanceVerse]
   );
 
-  const { isListening, isSupported, start, stop } = useSpeechRecognition({
+  const { isListening, isSupported, start, stop, reset } = useSpeechRecognition({
     lang: "ar",
     continuous: true,
     onResult: handleResult,
     onInterim: handleInterim,
   });
 
-  // Stall detection: speak "أعد" if no transcript for 6 seconds
+  // Smooth word-by-word pointer advancement
+  useEffect(() => {
+    if (!isReciting) return;
+
+    const interval = setInterval(() => {
+      const target = targetWordStatuses.current;
+      if (!target.length) return;
+
+      // Find the furthest non-default index in target
+      let targetIndex = -1;
+      for (let i = target.length - 1; i >= 0; i--) {
+        if (target[i] !== "default") {
+          targetIndex = i;
+          break;
+        }
+      }
+
+      const currentDisplayed = displayedIndexRef.current;
+
+      if (targetIndex > currentDisplayed) {
+        // Advance one word
+        const nextIndex = currentDisplayed + 1;
+        displayedIndexRef.current = nextIndex;
+
+        // Build displayed statuses: show statuses up to nextIndex, rest are default
+        const displayed: WordStatus[] = target.map((s, i) => {
+          if (i < nextIndex) {
+            return s === "current" ? (target[i] === "current" ? "correct" : s) : s;
+          }
+          if (i === nextIndex) return "current";
+          return "default";
+        });
+        setDisplayedWordStatuses(displayed);
+      } else if (targetIndex === currentDisplayed && targetIndex >= 0) {
+        // We're caught up — show target as-is
+        setDisplayedWordStatuses([...target]);
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [isReciting]);
+
+  // Stall detection: speak "أعد" if no transcript for 8 seconds
   useEffect(() => {
     if (!isReciting) return;
 
     const interval = setInterval(() => {
       if (stallCooldown.current) return;
       const elapsed = Date.now() - lastTranscriptTime.current;
-      if (elapsed > 6000 && lastTranscriptTime.current > 0) {
+      if (elapsed > 8000 && lastTranscriptTime.current > 0) {
         stallCooldown.current = true;
         const utterance = new SpeechSynthesisUtterance("أعد");
         utterance.lang = "ar";
         utterance.rate = 0.9;
         window.speechSynthesis.speak(utterance);
-        setTimeout(() => { stallCooldown.current = false; }, 6000);
+        setTimeout(() => { stallCooldown.current = false; }, 8000);
       }
     }, 1000);
 
@@ -133,11 +181,14 @@ const Index = () => {
       setActiveVerseIndex(0);
       activeVerseIndexRef.current = 0;
       setCompletedVerses(new Set());
-      setActiveWordStatuses([]);
+      setDisplayedWordStatuses([]);
       setVerseWordStatuses({});
+      targetWordStatuses.current = [];
+      displayedIndexRef.current = -1;
       verseTranscripts.current = {};
       lastTranscriptTime.current = Date.now();
       stallCooldown.current = false;
+      reset();
       setIsReciting(true);
       start();
     }
@@ -211,7 +262,7 @@ const Index = () => {
                   status={getVerseStatus(idx, verse.number)}
                   wordStatuses={
                     isReciting && idx === activeVerseIndex
-                      ? (activeWordStatuses.length > 0 ? activeWordStatuses : progressiveWordStatus("", verse.text))
+                      ? (displayedWordStatuses.length > 0 ? displayedWordStatuses : progressiveWordStatus("", verse.text))
                       : verseWordStatuses[idx]
                   }
                   onTap={() => handleMistake(verse.number)}

@@ -56,7 +56,7 @@ const VerseCard = ({ number, text, status, wordStatuses, onTap }: VerseCardProps
               return (
                 <span
                   key={i}
-                  className={`transition-colors duration-150 ${wordColorMap[ws]} ${dimUpcoming ? "opacity-40" : ""}`}
+                  className={`transition-all duration-300 ${wordColorMap[ws]} ${dimUpcoming ? "opacity-40" : ""}`}
                 >
                   {word}
                 </span>
