@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, Settings } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 import { surahs } from "@/data/surahs";
 import SurahSelector from "@/components/SurahSelector";
 import VerseCard from "@/components/VerseCard";
@@ -16,6 +18,7 @@ const Index = () => {
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
   const [displayedWordStatuses, setDisplayedWordStatuses] = useState<WordStatus[]>([]);
   const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
+  const [wordSpeed, setWordSpeed] = useState(250);
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
   const lastTranscriptTime = useRef<number>(0);
@@ -139,10 +142,10 @@ const Index = () => {
         // We're caught up — show target as-is
         setDisplayedWordStatuses([...target]);
       }
-    }, 250);
+    }, wordSpeed);
 
     return () => clearInterval(interval);
-  }, [isReciting]);
+  }, [isReciting, wordSpeed]);
 
   // Stall detection: speak "أعد" if no transcript for 8 seconds
   useEffect(() => {
@@ -230,7 +233,7 @@ const Index = () => {
         </header>
 
         {isSupported && (
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center items-center gap-3 mb-8">
             <button
               onClick={handleReciteToggle}
               className={`flex items-center gap-3 px-8 py-4 rounded-full text-lg font-medium transition-all duration-300 ${
@@ -242,6 +245,28 @@ const Index = () => {
               {isListening ? <MicOff size={20} /> : <Mic size={20} />}
               {isListening ? "Stop Reciting" : "Start Reciting"}
             </button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                  <Settings size={20} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 space-y-3">
+                <div className="text-sm font-medium">Pointer Speed</div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Fast</span>
+                  <span>Slow</span>
+                </div>
+                <Slider
+                  min={100}
+                  max={600}
+                  step={50}
+                  value={[wordSpeed]}
+                  onValueChange={([v]) => setWordSpeed(v)}
+                />
+                <div className="text-xs text-center text-muted-foreground">{wordSpeed}ms per word</div>
+              </PopoverContent>
+            </Popover>
           </div>
         )}
 
