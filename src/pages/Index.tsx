@@ -136,8 +136,6 @@ const Index = () => {
       setCompletedVerses(new Set());
       setDisplayedWordStatuses([]);
       setVerseWordStatuses({});
-      targetWordStatuses.current = [];
-      displayedIndexRef.current = -1;
       verseTranscripts.current = {};
       lastTranscriptTime.current = Date.now();
       stallCooldown.current = false;
