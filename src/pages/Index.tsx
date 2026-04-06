@@ -10,6 +10,8 @@ import MistakeSummary from "@/components/MistakeSummary";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { compareTexts, progressiveWordStatus, type WordStatus } from "@/lib/arabic-compare";
 
+const DEFAULT_WORD_SPEED = 650;
+
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
@@ -18,7 +20,7 @@ const Index = () => {
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
   const [displayedWordStatuses, setDisplayedWordStatuses] = useState<WordStatus[]>([]);
   const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
-  const [wordSpeed, setWordSpeed] = useState(250);
+  const [wordSpeed, setWordSpeed] = useState(DEFAULT_WORD_SPEED);
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
   const lastTranscriptTime = useRef<number>(0);
@@ -104,6 +106,10 @@ const Index = () => {
     onResult: handleResult,
     onInterim: handleInterim,
   });
+
+  useEffect(() => {
+    setWordSpeed((current) => (current < 400 ? DEFAULT_WORD_SPEED : current));
+  }, []);
 
   // Smooth word-by-word pointer advancement
   useEffect(() => {
@@ -260,17 +266,17 @@ const Index = () => {
               <PopoverContent className="w-64 space-y-3">
                 <div className="text-sm font-medium">Pointer Speed</div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Fast</span>
-                  <span>Slow</span>
+                  <span>Faster</span>
+                  <span>Slower</span>
                 </div>
                 <Slider
-                  min={100}
-                  max={600}
+                  min={250}
+                  max={1500}
                   step={50}
                   value={[wordSpeed]}
                   onValueChange={([v]) => setWordSpeed(v)}
                 />
-                <div className="text-xs text-center text-muted-foreground">{wordSpeed}ms per word</div>
+                <div className="text-xs text-center text-muted-foreground">{(wordSpeed / 1000).toFixed(2)}s per word</div>
               </PopoverContent>
             </Popover>
           </div>
