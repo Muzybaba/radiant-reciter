@@ -113,11 +113,18 @@ const Index = () => {
       const target = targetWordStatuses.current;
       if (!target.length) return;
 
-      // Find the furthest non-default index in target
+      // Find the furthest non-default index in target (how far speech has reached)
       let targetIndex = -1;
       for (let i = target.length - 1; i >= 0; i--) {
-        if (target[i] !== "default") {
+        if (target[i] !== "default" && target[i] !== "current") {
           targetIndex = i;
+          break;
+        }
+      }
+      // Include the "current" pointer position from target
+      for (let i = 0; i < target.length; i++) {
+        if (target[i] === "current") {
+          targetIndex = Math.max(targetIndex, i);
           break;
         }
       }
@@ -125,23 +132,22 @@ const Index = () => {
       const currentDisplayed = displayedIndexRef.current;
 
       if (targetIndex > currentDisplayed) {
-        // Advance one word
+        // Advance one word at a time
         const nextIndex = currentDisplayed + 1;
         displayedIndexRef.current = nextIndex;
 
-        // Build displayed statuses: show statuses up to nextIndex, rest are default
         const displayed: WordStatus[] = target.map((s, i) => {
           if (i < nextIndex) {
-            return s === "current" ? (target[i] === "current" ? "correct" : s) : s;
+            // Already passed: show correct/missed status from target
+            const status = s === "current" || s === "default" ? "correct" : s;
+            return status;
           }
           if (i === nextIndex) return "current";
           return "default";
         });
         setDisplayedWordStatuses(displayed);
-      } else if (targetIndex === currentDisplayed && targetIndex >= 0) {
-        // We're caught up — show target as-is
-        setDisplayedWordStatuses([...target]);
       }
+      // When caught up, do nothing — keep the current display stable
     }, wordSpeed);
 
     return () => clearInterval(interval);
