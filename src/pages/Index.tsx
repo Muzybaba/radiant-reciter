@@ -1,16 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, MicOff, Settings } from "lucide-react";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Slider } from "@/components/ui/slider";
+import { Mic, MicOff } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import SurahSelector from "@/components/SurahSelector";
 import VerseCard from "@/components/VerseCard";
 import MistakeSummary from "@/components/MistakeSummary";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { compareTexts, progressiveWordStatus, type WordStatus } from "@/lib/arabic-compare";
-
-const DEFAULT_WORD_SPEED = 650;
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
@@ -20,13 +16,10 @@ const Index = () => {
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
   const [displayedWordStatuses, setDisplayedWordStatuses] = useState<WordStatus[]>([]);
   const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
-  const [wordSpeed, setWordSpeed] = useState(DEFAULT_WORD_SPEED);
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
-  const targetWordStatuses = useRef<WordStatus[]>([]);
-  const displayedIndexRef = useRef<number>(-1);
 
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
@@ -54,8 +47,8 @@ const Index = () => {
       lastTranscriptTime.current = Date.now();
 
       const statuses = progressiveWordStatus(transcript, verse.text);
-      // Set target statuses — the smooth interval will advance displayed statuses
-      targetWordStatuses.current = statuses;
+      // Directly update displayed statuses — speech-driven, no timer
+      setDisplayedWordStatuses(statuses);
 
       const score = compareTexts(transcript, verse.text);
 
@@ -72,9 +65,6 @@ const Index = () => {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
         setActiveVerseIndex(nextIdx);
-        // Reset smooth pointer for new verse
-        targetWordStatuses.current = [];
-        displayedIndexRef.current = -1;
         setDisplayedWordStatuses([]);
       } else {
         finishRecitation();
@@ -106,58 +96,6 @@ const Index = () => {
     onResult: handleResult,
     onInterim: handleInterim,
   });
-
-  useEffect(() => {
-    setWordSpeed((current) => (current < 400 ? DEFAULT_WORD_SPEED : current));
-  }, []);
-
-  // Smooth word-by-word pointer advancement
-  useEffect(() => {
-    if (!isReciting) return;
-
-    const interval = setInterval(() => {
-      const target = targetWordStatuses.current;
-      if (!target.length) return;
-
-      // Find the furthest non-default index in target (how far speech has reached)
-      let targetIndex = -1;
-      for (let i = target.length - 1; i >= 0; i--) {
-        if (target[i] !== "default" && target[i] !== "current") {
-          targetIndex = i;
-          break;
-        }
-      }
-      // Include the "current" pointer position from target
-      for (let i = 0; i < target.length; i++) {
-        if (target[i] === "current") {
-          targetIndex = Math.max(targetIndex, i);
-          break;
-        }
-      }
-
-      const currentDisplayed = displayedIndexRef.current;
-
-      if (targetIndex > currentDisplayed) {
-        // Advance one word at a time
-        const nextIndex = currentDisplayed + 1;
-        displayedIndexRef.current = nextIndex;
-
-        const displayed: WordStatus[] = target.map((s, i) => {
-          if (i < nextIndex) {
-            // Already passed: show correct/missed status from target
-            const status = s === "current" || s === "default" ? "correct" : s;
-            return status;
-          }
-          if (i === nextIndex) return "current";
-          return "default";
-        });
-        setDisplayedWordStatuses(displayed);
-      }
-      // When caught up, do nothing — keep the current display stable
-    }, wordSpeed);
-
-    return () => clearInterval(interval);
-  }, [isReciting, wordSpeed]);
 
   // Stall detection: speak "أعد" if no transcript for 8 seconds
   useEffect(() => {
@@ -198,8 +136,6 @@ const Index = () => {
       setCompletedVerses(new Set());
       setDisplayedWordStatuses([]);
       setVerseWordStatuses({});
-      targetWordStatuses.current = [];
-      displayedIndexRef.current = -1;
       verseTranscripts.current = {};
       lastTranscriptTime.current = Date.now();
       stallCooldown.current = false;
@@ -257,28 +193,6 @@ const Index = () => {
               {isListening ? <MicOff size={20} /> : <Mic size={20} />}
               {isListening ? "Stop Reciting" : "Start Reciting"}
             </button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                  <Settings size={20} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 space-y-3">
-                <div className="text-sm font-medium">Pointer Speed</div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Faster</span>
-                  <span>Slower</span>
-                </div>
-                <Slider
-                  min={250}
-                  max={1500}
-                  step={50}
-                  value={[wordSpeed]}
-                  onValueChange={([v]) => setWordSpeed(v)}
-                />
-                <div className="text-xs text-center text-muted-foreground">{(wordSpeed / 1000).toFixed(2)}s per word</div>
-              </PopoverContent>
-            </Popover>
           </div>
         )}
 
