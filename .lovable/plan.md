@@ -1,53 +1,36 @@
 
 
-## Problems Identified
+## Problem
 
-1. **Transcript is lost on recognition restart** — When the Web Speech API silently ends and auto-restarts, each new session resets `event.resultIndex`. The hook only sends the current segment, not the accumulated transcript. This means after a restart, the matching logic receives incomplete text and the highlighting breaks or jumps.
+The current pointer uses a **fixed-speed timer** (e.g. 650ms per word) to advance, regardless of how fast or slow you actually speak. This is why it feels disconnected from your voice — it's not following you, it's running on a clock.
 
-2. **Highlighter jumps too fast** — `progressiveWordStatus` processes all spoken words instantly and jumps the pointer to the end of the matched region. If the user says 3 words between renders, the pointer leaps 3 words at once instead of smoothly advancing word by word.
+## Root cause
 
-3. **Stall detection fires during recognition gaps** — When recognition restarts (300ms gap), `lastTranscriptTime` isn't updated, which can contribute to false stall triggers.
+The Browser Speech API doesn't fire word-by-word — it sends chunks of recognized text. So we added a timer to "smooth" the display. But that timer moves independently of your actual speech, which defeats the purpose.
 
-## Plan
+## Solution: Speech-driven pointer (no timer)
 
-### 1. Accumulate transcript across recognition restarts
+Remove the interval-based advancement entirely. Instead, apply `progressiveWordStatus` results **directly** to the display. The speech API already tells us which words have been spoken — we just need to show that immediately. CSS transitions (300ms) will handle visual smoothness.
 
-**File: `src/hooks/use-speech-recognition.ts`**
+### Changes
 
-Add a `cumulativeTranscriptRef` that appends each final result segment. On `onResult`, send the cumulative transcript (not just the latest segment). On `onInterim`, send cumulative + current interim. Add a `reset()` function that clears the accumulation, called when starting a new recitation session.
+**`src/pages/Index.tsx`**
+- Remove the `displayedIndexRef`, `targetWordStatuses` ref, and the smooth-pointer `useEffect` interval
+- Remove `wordSpeed` state and the Settings popover (no longer needed)
+- In `advanceVerse`, call `setDisplayedWordStatuses(statuses)` directly from `progressiveWordStatus` result
+- In `handleInterim`, also update displayed statuses directly so the pointer moves as soon as interim results arrive
+- Keep the stall detection as-is
 
-This ensures recognition restarts don't lose previous words.
+**`src/components/VerseCard.tsx`**
+- Keep the existing `transition-colors duration-300` on words — this provides the visual smoothness without a timer
 
-### 2. Smooth word-by-word pointer advancement
+This means:
+- Say a word → speech API recognizes it → pointer moves to that word immediately
+- If you pause, the pointer pauses with you
+- If you speak fast, it keeps up
+- CSS transitions make color changes feel smooth, not jarring
 
-**File: `src/pages/Index.tsx`**
+### Why this is better than the timer approach
 
-Instead of directly setting `activeWordStatuses` from `progressiveWordStatus` (which jumps), introduce a "target statuses" and a "displayed statuses" model:
-
-- `progressiveWordStatus` computes the target (where matching has reached)
-- A `useEffect` with a short interval (~250ms) advances the displayed statuses one word at a time toward the target
-- The "current" pointer moves smoothly, one word per tick, creating a karaoke-like flow
-
-This decouples the speech matching speed from the visual pointer speed.
-
-### 3. Longer transition on word color changes
-
-**File: `src/components/VerseCard.tsx`**
-
-Increase the CSS `transition-colors duration` from `150ms` to `300ms` so color changes feel smoother rather than instant.
-
-### 4. Fix stall detection timing
-
-**File: `src/pages/Index.tsx`**
-
-Update `lastTranscriptTime` in the recognition restart logic too (via a callback or by resetting it when the hook signals a restart). Also increase the stall threshold to 8 seconds to be safe, since the smooth pointer adds visual delay.
-
-### Summary of changes
-
-| File | Change |
-|------|--------|
-| `use-speech-recognition.ts` | Accumulate transcript across restarts, expose `reset()` |
-| `Index.tsx` | Smooth pointer advancement via interval, fix stall timing |
-| `VerseCard.tsx` | Increase transition duration to 300ms |
-| `arabic-compare.ts` | No changes needed |
+The timer tried to simulate smooth movement but created a disconnect. By going speech-driven, the pointer is always in sync with your voice. The 300ms CSS transition provides enough visual smoothness without artificial delays.
 
