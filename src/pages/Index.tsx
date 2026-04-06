@@ -193,28 +193,6 @@ const Index = () => {
               {isListening ? <MicOff size={20} /> : <Mic size={20} />}
               {isListening ? "Stop Reciting" : "Start Reciting"}
             </button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                  <Settings size={20} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 space-y-3">
-                <div className="text-sm font-medium">Pointer Speed</div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Faster</span>
-                  <span>Slower</span>
-                </div>
-                <Slider
-                  min={250}
-                  max={1500}
-                  step={50}
-                  value={[wordSpeed]}
-                  onValueChange={([v]) => setWordSpeed(v)}
-                />
-                <div className="text-xs text-center text-muted-foreground">{(wordSpeed / 1000).toFixed(2)}s per word</div>
-              </PopoverContent>
-            </Popover>
           </div>
         )}
 
