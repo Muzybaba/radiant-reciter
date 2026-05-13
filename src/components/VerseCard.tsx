@@ -29,7 +29,7 @@ const wordColorMap: Record<WordStatus, string> = {
   default: "",
   correct: "text-[hsl(var(--success-text))]",
   missed: "text-[hsl(var(--mistake-text))]",
-  current: "text-primary bg-primary/15 rounded-sm px-1.5 py-0.5 -mx-0.5",
+  current: "text-primary rounded-sm px-1.5 py-0.5 -mx-0.5 animate-word-pulse",
 };
 
 const VerseCard = ({ number, text, status, wordStatuses, onTap }: VerseCardProps) => {
