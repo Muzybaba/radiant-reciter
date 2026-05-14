@@ -5,7 +5,7 @@ import { surahs } from "@/data/surahs";
 import SurahSelector from "@/components/SurahSelector";
 import VerseCard from "@/components/VerseCard";
 import MistakeSummary from "@/components/MistakeSummary";
-import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
+import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { compareTexts, progressiveWordStatus, type WordStatus } from "@/lib/arabic-compare";
 
 const Index = () => {
@@ -90,11 +90,11 @@ const Index = () => {
     [advanceVerse]
   );
 
-  const { isListening, isSupported, start, stop, reset } = useSpeechRecognition({
-    lang: "ar",
-    continuous: true,
+  const { isListening, isSupported, start, stop, reset } = useScribeRecognition({
+    language: "ara",
     onResult: handleResult,
     onInterim: handleInterim,
+    onError: (msg) => console.error("Scribe error:", msg),
   });
 
   // Stall detection: speak "أعد" if no transcript for 8 seconds
