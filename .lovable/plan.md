@@ -1,36 +1,54 @@
+# Better recitation tracking — upgrade voice engine
 
+## Goal
 
-## Problem
+Make the highlighter follow your recitation accurately, in real time, even with tajweed, slow elongations, and quiet voice. The current browser Speech API is the bottleneck — it's inconsistent for Arabic, drops words, and only emits chunks (never letter-by-letter), so no client logic can fully fix it.
 
-The current pointer uses a **fixed-speed timer** (e.g. 650ms per word) to advance, regardless of how fast or slow you actually speak. This is why it feels disconnected from your voice — it's not following you, it's running on a clock.
+## Why the browser API can't get much better
 
-## Root cause
+- Chrome's `webkitSpeechRecognition` is not Quran-aware. It mishears tajweed, merges words, and frequently drops audio after silences.
+- It never exposes letters or phonemes — only loose word chunks. "Letter by letter" tracking is impossible on top of it.
+- It auto-stops on pauses, which breaks the flow when you elongate (madd).
 
-The Browser Speech API doesn't fire word-by-word — it sends chunks of recognized text. So we added a timer to "smooth" the display. But that timer moves independently of your actual speech, which defeats the purpose.
+## Recommended approach: ElevenLabs Scribe v2 Realtime
 
-## Solution: Speech-driven pointer (no timer)
+Switch the recognition engine from browser Web Speech to **ElevenLabs Scribe v2 Realtime**. It streams audio over WebSocket and returns:
+- partial transcripts with very low latency
+- committed transcripts with **per-word timestamps**
+- strong Arabic accuracy (much better than Chrome for Quranic recitation)
 
-Remove the interval-based advancement entirely. Instead, apply `progressiveWordStatus` results **directly** to the display. The speech API already tells us which words have been spoken — we just need to show that immediately. CSS transitions (300ms) will handle visual smoothness.
+This unlocks:
+- A pointer that moves the moment a word is recognized (true speech-driven, like the previous plan, but actually accurate).
+- Proper handling of long madd / pauses without the engine cutting out.
+- Clean per-word matching against the verse using the existing `progressiveWordStatus` logic — no algorithm change needed, just a better signal feeding it.
 
-### Changes
+## Why not "letter by letter"
 
-**`src/pages/Index.tsx`**
-- Remove the `displayedIndexRef`, `targetWordStatuses` ref, and the smooth-pointer `useEffect` interval
-- Remove `wordSpeed` state and the Settings popover (no longer needed)
-- In `advanceVerse`, call `setDisplayedWordStatuses(statuses)` directly from `progressiveWordStatus` result
-- In `handleInterim`, also update displayed statuses directly so the pointer moves as soon as interim results arrive
-- Keep the stall detection as-is
+Even Scribe doesn't expose phonemes live. True letter-level tracking would require a custom forced-aligner (e.g. wav2vec2 fine-tuned on Quran) running server-side — weeks of work and heavy infra. **Word-level with reliable timestamps gives the same UX feel** at a fraction of the complexity, because Arabic recitation words are short and the pointer updates feel immediate.
 
-**`src/components/VerseCard.tsx`**
-- Keep the existing `transition-colors duration-300` on words — this provides the visual smoothness without a timer
+## What changes
 
-This means:
-- Say a word → speech API recognizes it → pointer moves to that word immediately
-- If you pause, the pointer pauses with you
-- If you speak fast, it keeps up
-- CSS transitions make color changes feel smooth, not jarring
+### Backend (Lovable Cloud)
+- Enable Lovable Cloud.
+- Add `ELEVENLABS_API_KEY` secret.
+- Edge function `scribe-token` that mints a 15-min single-use realtime token (keeps the API key server-side).
 
-### Why this is better than the timer approach
+### Frontend
+- Add `@elevenlabs/react`.
+- New hook `useScribeRecognition` (mirrors the current `useSpeechRecognition` interface: `start`, `stop`, `reset`, `onInterim`, `onResult`) backed by `useScribe` with `commitStrategy: "vad"` and `language: "ara"`.
+- `src/pages/Index.tsx` swaps the hook import. The matching logic, pointer, pulse animation, and stall detection stay the same — they just receive a much better transcript stream.
+- Keep the current Web Speech hook as a fallback if the user denies the network call or the token endpoint fails.
 
-The timer tried to simulate smooth movement but created a disconnect. By going speech-driven, the pointer is always in sync with your voice. The 300ms CSS transition provides enough visual smoothness without artificial delays.
+### UX tweaks while we're in there
+- Lower the interim threshold (now 0.55) since Scribe is more reliable — pointer advances sooner.
+- Remove the 8-second "أعد" auto-prompt on the first pass (it fired during legitimate madd); replace with a softer visual hint after 12s of silence.
 
+## Cost / setup note
+
+ElevenLabs Scribe Realtime is a paid API. You'll need an ElevenLabs account and API key. Pricing is per audio-minute; a typical recitation session is cheap, but it is not free like the browser API.
+
+## Out of scope
+
+- True phoneme/letter-level alignment (requires custom ML model).
+- Tajweed-rule scoring (separate future feature).
+- Storing recitation history (separate Cloud feature).
