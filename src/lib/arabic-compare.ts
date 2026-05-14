@@ -164,52 +164,65 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
   const wordsSpoken = aNorm.split(" ");
   const wordsCorrect = bNorm.split(" ");
 
-  // Greedy sequential match: walk through correct words, try to match spoken words in order
   const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
   let spokenIdx = 0;
   let lastMatchedCorrectIdx = -1;
+  const lastSpokenIdx = wordsSpoken.length - 1;
 
   for (let ci = 0; ci < wordsCorrect.length; ci++) {
     if (spokenIdx >= wordsSpoken.length) break;
 
-    if (wordsCorrect[ci] === wordsSpoken[spokenIdx]) {
+    const isLastSpoken = spokenIdx === lastSpokenIdx;
+    const sw = wordsSpoken[spokenIdx];
+    const cw = wordsCorrect[ci];
+
+    // Direct / fuzzy match
+    if (wordsClose(sw, cw)) {
       statuses[ci] = "correct";
       lastMatchedCorrectIdx = ci;
       spokenIdx++;
-    } else {
-      // Look ahead in spoken words to handle insertions
-      let found = false;
-      for (let look = 1; look <= 3 && spokenIdx + look < wordsSpoken.length; look++) {
-        if (wordsCorrect[ci] === wordsSpoken[spokenIdx + look]) {
-          statuses[ci] = "correct";
-          lastMatchedCorrectIdx = ci;
-          spokenIdx += look + 1;
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        // Also look ahead in correct words to handle skipped words
-        let skipped = false;
-        for (let look = 1; look <= 2 && ci + look < wordsCorrect.length; look++) {
-          if (wordsCorrect[ci + look] === wordsSpoken[spokenIdx]) {
-            // Mark current as missed, don't advance spokenIdx
-            statuses[ci] = "missed";
-            lastMatchedCorrectIdx = ci;
-            skipped = true;
-            break;
-          }
-        }
-        if (!skipped) {
-          statuses[ci] = "missed";
-          lastMatchedCorrectIdx = ci;
-          spokenIdx++;
-        }
+      continue;
+    }
+
+    // Look ahead in spoken (insertions / filler)
+    let consumedSpoken = 0;
+    let matched = false;
+    for (let look = 1; look <= 3 && spokenIdx + look < wordsSpoken.length; look++) {
+      if (wordsClose(wordsSpoken[spokenIdx + look], cw)) {
+        statuses[ci] = "correct";
+        lastMatchedCorrectIdx = ci;
+        spokenIdx += look + 1;
+        consumedSpoken = look + 1;
+        matched = true;
+        break;
       }
     }
+    if (matched) continue;
+
+    // Look ahead in correct (skipped a word)
+    let skipped = false;
+    for (let look = 1; look <= 2 && ci + look < wordsCorrect.length; look++) {
+      if (wordsClose(wordsCorrect[ci + look], sw)) {
+        statuses[ci] = "missed";
+        lastMatchedCorrectIdx = ci;
+        skipped = true;
+        break;
+      }
+    }
+    if (skipped) continue;
+
+    // Last spoken word is a tail / partial of current correct word -> active pointer here
+    if (isLastSpoken && (cw.startsWith(sw) || sw.startsWith(cw))) {
+      // don't mark as missed — let pointer sit on this word
+      break;
+    }
+
+    statuses[ci] = "missed";
+    lastMatchedCorrectIdx = ci;
+    spokenIdx++;
   }
 
-  // Mark the next unprocessed word as "current" (the reading pointer)
+  // Active pointer = the next word user should say
   const nextIdx = lastMatchedCorrectIdx + 1;
   if (nextIdx < statuses.length) {
     statuses[nextIdx] = "current";
