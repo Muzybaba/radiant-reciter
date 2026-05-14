@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { useScribe } from "@elevenlabs/react";
+import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UseScribeRecognitionOptions {
@@ -40,8 +40,8 @@ export function useScribeRecognition({
 
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
-    commitStrategy: "vad",
-    language,
+    commitStrategy: CommitStrategy.VAD,
+    languageCode: language,
     onPartialTranscript: (data: { text: string }) => {
       const text = (data?.text || "").trim();
       const combined = committedRef.current
