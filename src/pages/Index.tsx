@@ -1,12 +1,24 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, GraduationCap } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import SurahSelector from "@/components/SurahSelector";
 import VerseCard from "@/components/VerseCard";
 import MistakeSummary from "@/components/MistakeSummary";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
-import { compareTexts, progressiveWordStatus, type WordStatus } from "@/lib/arabic-compare";
+import {
+  compareTexts,
+  verseLockedAlign,
+  progressiveWordStatus,
+  type WordStatus,
+} from "@/lib/arabic-compare";
+import {
+  acceptCorrection,
+  getAcceptedPairs,
+  getAcceptedSlots,
+  slotKey,
+  subscribeCorrections,
+} from "@/lib/corrections-store";
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
@@ -16,14 +28,42 @@ const Index = () => {
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
   const [displayedWordStatuses, setDisplayedWordStatuses] = useState<WordStatus[]>([]);
   const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
+  const [teacherMode, setTeacherMode] = useState(false);
+  // Last alignment per verse — needed so teacher taps know which spoken token
+  // was paired with each correct word.
+  const verseAlignedSpoken = useRef<Record<number, (string | null)[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
 
+  // Subscribe to corrections store so the aligner picks up new accepted pairs.
+  const correctionsTick = useSyncExternalStore(
+    subscribeCorrections,
+    () => getAcceptedPairs().size + getAcceptedSlots().size,
+    () => 0
+  );
+
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
   const activeVerseIndexRef = useRef(0);
+
+  // Apply position-specific slot overrides on top of aligner statuses.
+  const applySlotOverrides = useCallback(
+    (statuses: WordStatus[], verseIdx: number): WordStatus[] => {
+      const slots = getAcceptedSlots();
+      if (slots.size === 0) return statuses;
+      let next: WordStatus[] | null = null;
+      for (let wi = 0; wi < statuses.length; wi++) {
+        if (slots.has(slotKey(activeSurahId, verseIdx, wi)) && statuses[wi] !== "correct") {
+          next = next ?? [...statuses];
+          next[wi] = "correct";
+        }
+      }
+      return next ?? statuses;
+    },
+    [activeSurahId]
+  );
 
   const markMistake = useCallback((verseNumber: number) => {
     setMistakes((prev) => {
@@ -46,8 +86,13 @@ const Index = () => {
       verseTranscripts.current[idx] = transcript;
       lastTranscriptTime.current = Date.now();
 
-      const statuses = progressiveWordStatus(transcript, verse.text);
-      // Directly update displayed statuses — speech-driven, no timer
+      const { statuses: rawStatuses, alignedSpokenNorm } = verseLockedAlign(
+        transcript,
+        verse.text,
+        { acceptedPairs: getAcceptedPairs() }
+      );
+      verseAlignedSpoken.current[idx] = alignedSpokenNorm;
+      const statuses = applySlotOverrides(rawStatuses, idx);
       setDisplayedWordStatuses(statuses);
 
       const score = compareTexts(transcript, verse.text);
@@ -71,7 +116,7 @@ const Index = () => {
       }
       return true;
     },
-    [activeSurah, markMistake, finishRecitation]
+    [activeSurah, markMistake, finishRecitation, applySlotOverrides]
   );
 
   const handleResult = useCallback(
@@ -160,6 +205,64 @@ const Index = () => {
     setCompletedVerses(new Set());
   };
 
+  // Teacher review: tap a missed/current word to mark it correctly recited.
+  // Saves either a global (correct, spoken) pair or a position override,
+  // then re-runs alignment so the UI updates immediately.
+  const handleWordTap = useCallback(
+    (verseIdx: number, wordIdx: number) => {
+      const verse = activeSurah.verses[verseIdx];
+      if (!verse) return;
+      const words = verse.text.replace(/\u0640/g, "").trim().split(/\s+/);
+      const correctWord = words[wordIdx];
+      if (!correctWord) return;
+      const alignedSpoken = verseAlignedSpoken.current[verseIdx]?.[wordIdx] ?? null;
+
+      acceptCorrection({
+        surahId: activeSurahId,
+        verseIdx,
+        wordIdx,
+        correctWord,
+        spokenWord: alignedSpoken,
+      });
+
+      // Re-align this verse with the updated pairs and refresh its display.
+      const transcript = verseTranscripts.current[verseIdx] ?? "";
+      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, {
+        acceptedPairs: getAcceptedPairs(),
+      });
+      verseAlignedSpoken.current[verseIdx] = alignedSpokenNorm;
+      const next = applySlotOverrides(statuses, verseIdx);
+
+      if (isReciting && verseIdx === activeVerseIndex) {
+        setDisplayedWordStatuses(next);
+      } else {
+        const finalStatuses: WordStatus[] = next.map(s => s === "current" ? "default" : s);
+        setVerseWordStatuses(prev => ({ ...prev, [verseIdx]: finalStatuses }));
+      }
+    },
+    [activeSurah, activeSurahId, isReciting, activeVerseIndex, applySlotOverrides]
+  );
+
+  // When corrections change (e.g. from another tab or after acceptCorrection),
+  // re-run alignment for every verse with a stored transcript.
+  useEffect(() => {
+    const pairs = getAcceptedPairs();
+    const updates: Record<number, WordStatus[]> = {};
+    for (const [idxStr, transcript] of Object.entries(verseTranscripts.current)) {
+      const idx = Number(idxStr);
+      const verse = activeSurah.verses[idx];
+      if (!verse) continue;
+      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, { acceptedPairs: pairs });
+      verseAlignedSpoken.current[idx] = alignedSpokenNorm;
+      const next = applySlotOverrides(statuses, idx);
+      updates[idx] = next.map(s => s === "current" ? "default" : s);
+    }
+    if (Object.keys(updates).length > 0) {
+      setVerseWordStatuses(prev => ({ ...prev, ...updates }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correctionsTick, activeSurahId]);
+
   const getVerseStatus = (idx: number, verseNumber: number): "default" | "active" | "mistake" | "success" => {
     if (isReciting && idx === activeVerseIndex) return "active";
     if (currentMistakes.includes(verseNumber)) return "mistake";
@@ -181,7 +284,7 @@ const Index = () => {
         </header>
 
         {isSupported && (
-          <div className="flex justify-center items-center gap-3 mb-8">
+          <div className="flex justify-center items-center gap-3 mb-4">
             <button
               onClick={handleReciteToggle}
               className={`flex items-center gap-3 px-8 py-4 rounded-full text-lg font-medium transition-all duration-300 ${
@@ -195,6 +298,21 @@ const Index = () => {
             </button>
           </div>
         )}
+
+        <div className="flex justify-center mb-8">
+          <button
+            onClick={() => setTeacherMode((v) => !v)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium tracking-wide uppercase transition-all duration-200 border ${
+              teacherMode
+                ? "bg-foreground text-background border-foreground"
+                : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
+            }`}
+            title="Tap any mistake-flagged word to mark it as correctly recited. Saved for future matching."
+          >
+            <GraduationCap size={14} />
+            Teacher Mode {teacherMode ? "On" : "Off"}
+          </button>
+        </div>
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -217,6 +335,8 @@ const Index = () => {
                       : verseWordStatuses[idx]
                   }
                   onTap={() => handleMistake(verse.number)}
+                  teacherMode={teacherMode}
+                  onWordTap={(wi) => handleWordTap(idx, wi)}
                 />
               </div>
             ))}
@@ -224,7 +344,11 @@ const Index = () => {
         </AnimatePresence>
 
         <p className="text-center label-ui mt-16 opacity-50">
-          {isReciting ? "Reciting... mistakes will be highlighted" : "Tap a verse to mark a mistake, or press Start Reciting"}
+          {teacherMode
+            ? "Teacher mode — tap a red word to teach the matcher it was correct"
+            : isReciting
+              ? "Reciting... mistakes will be highlighted"
+              : "Tap a verse to mark a mistake, or press Start Reciting"}
         </p>
       </div>
 

@@ -205,43 +205,68 @@ export function diffWords(spoken: string, correct: string): WordDiff[] {
 }
 
 /**
- * Progressive word-by-word status for real-time highlighting.
- * Compares spoken words against verse words sequentially.
- * Words matched so far = "correct", spoken but not matched = "missed", not yet reached = "default".
+ * Verse-locked alignment result.
+ *  - statuses:           per correct-word display status
+ *  - alignedSpokenNorm:  for each correct word, the normalized spoken token the
+ *                        aligner paired with it (or null if none). Used by the
+ *                        teacher-review flow to save (correct, spoken) pairs.
  */
-export function progressiveWordStatus(spoken: string, correct: string): WordStatus[] {
+export interface VerseLockedAlignment {
+  statuses: WordStatus[];
+  alignedSpokenNorm: (string | null)[];
+}
+
+export interface VerseLockedOptions {
+  /** Set of "${correctNorm}|${spokenNorm}" pairs to treat as a perfect match. */
+  acceptedPairs?: Set<string>;
+}
+
+/**
+ * Needleman-Wunsch alignment of the spoken transcript against the known
+ * correct ayah. The ayah is the "lattice" — every correct word must be
+ * accounted for. Returns per-word status plus alignment metadata.
+ */
+export function verseLockedAlign(
+  spoken: string,
+  correct: string,
+  opts: VerseLockedOptions = {}
+): VerseLockedAlignment {
   const correctOriginalWords = correct
     .replace(/\u0640/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .split(" ");
 
-  const wordsCorrect = correctOriginalWords.map((w) => phonemicNormalize(w)).filter(Boolean);
-  if (wordsCorrect.length === 0) {
-    return correctOriginalWords.map(() => "default");
+  const wordsCorrect = correctOriginalWords.map((w) => phonemicNormalize(w));
+  const n = wordsCorrect.length;
+
+  if (n === 0) {
+    return { statuses: [], alignedSpokenNorm: [] };
   }
 
   const spokenNorm = phonemicNormalize(spoken);
   if (!spokenNorm) {
     const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
     statuses[0] = "current";
-    return statuses;
+    return { statuses, alignedSpokenNorm: new Array(n).fill(null) };
   }
+
   const wordsSpoken = spokenNorm.split(" ");
-
-  // ----- Verse-locked Needleman-Wunsch alignment -----
-  // Score: lower is better. Substitution = phoneticDistance(0..1).
-  // Insertion (spoken extra word) = 0.7. Deletion (skipped correct word) = 0.9
-  // — penalize skipping ayah words harder so we don't drop them silently.
-  const INS = 0.7; // skip a spoken word
-  const DEL = 0.9; // skip a correct word
-  const MATCH_THRESHOLD = 0.45; // sub cost <= this counts as "correct"
-
   const m = wordsSpoken.length;
-  const n = wordsCorrect.length;
+
+  const INS = 0.7;
+  const DEL = 0.9;
+  const MATCH_THRESHOLD = 0.45;
+  const pairs = opts.acceptedPairs;
+
+  // Substitution cost with teacher-correction lookup
+  const subCost = (si: number, ci: number): number => {
+    if (pairs && pairs.has(`${wordsCorrect[ci]}|${wordsSpoken[si]}`)) return 0;
+    return phoneticDistance(wordsSpoken[si], wordsCorrect[ci]);
+  };
+
   const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
   const bt: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  // 0 = diag, 1 = up (ins, skip spoken), 2 = left (del, skip correct)
 
   for (let i = 1; i <= m; i++) { dp[i][0] = i * INS; bt[i][0] = 1; }
   for (let j = 1; j <= n; j++) { dp[0][j] = j * DEL; bt[0][j] = 2; }
@@ -249,10 +274,8 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
   for (let i = 1; i <= m; i++) {
     const isLastSpoken = i === m;
     for (let j = 1; j <= n; j++) {
-      const sub = phoneticDistance(wordsSpoken[i - 1], wordsCorrect[j - 1]);
-      const diag = dp[i - 1][j - 1] + sub;
+      const diag = dp[i - 1][j - 1] + subCost(i - 1, j - 1);
       const up = dp[i - 1][j] + INS;
-      // discourage trailing deletions of correct words past the last spoken word
       const left = dp[i][j - 1] + (isLastSpoken ? DEL * 0.4 : DEL);
       let best = diag, dir = 0;
       if (up < best) { best = up; dir = 1; }
@@ -262,21 +285,21 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
     }
   }
 
-  // Backtrack to mark statuses
   const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
+  const alignedSpokenNorm: (string | null)[] = new Array(n).fill(null);
   let i = m, j = n;
   let lastMatchedCorrectIdx = -1;
-  let pendingCurrent = -1; // correct idx where last spoken word landed as a partial
+  let pendingCurrent = -1;
 
   while (i > 0 && j > 0) {
     const dir = bt[i][j];
     if (dir === 0) {
-      const sub = phoneticDistance(wordsSpoken[i - 1], wordsCorrect[j - 1]);
+      const sub = subCost(i - 1, j - 1);
+      alignedSpokenNorm[j - 1] = wordsSpoken[i - 1];
       if (sub <= MATCH_THRESHOLD) {
         statuses[j - 1] = "correct";
         if (j - 1 > lastMatchedCorrectIdx) lastMatchedCorrectIdx = j - 1;
       } else if (i === m && sub <= 0.7) {
-        // last spoken word is a noisy partial of this correct word
         pendingCurrent = j - 1;
       } else {
         statuses[j - 1] = "missed";
@@ -284,20 +307,16 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
       }
       i--; j--;
     } else if (dir === 1) {
-      // spoken word with no correct counterpart — just consume
       i--;
     } else {
-      // correct word skipped — mark missed only if we've already started reciting past it
       if (j - 1 <= lastMatchedCorrectIdx) {
         statuses[j - 1] = "missed";
       }
       j--;
     }
   }
-  // remaining deletions at start: leave as default
   while (i > 0) i--;
 
-  // Current pointer
   if (pendingCurrent >= 0) {
     statuses[pendingCurrent] = "current";
   } else {
@@ -305,5 +324,17 @@ export function progressiveWordStatus(spoken: string, correct: string): WordStat
     if (nextIdx < statuses.length) statuses[nextIdx] = "current";
   }
 
-  return statuses;
+  return { statuses, alignedSpokenNorm };
 }
+
+/**
+ * Backwards-compatible wrapper — just the statuses.
+ */
+export function progressiveWordStatus(
+  spoken: string,
+  correct: string,
+  opts: VerseLockedOptions = {}
+): WordStatus[] {
+  return verseLockedAlign(spoken, correct, opts).statuses;
+}
+
