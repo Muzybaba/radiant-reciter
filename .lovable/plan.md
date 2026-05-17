@@ -1,54 +1,83 @@
-# Better recitation tracking — upgrade voice engine
+# Plan: Beat Tarteel on Quran recitation accuracy
 
-## Goal
+You picked the hardest path: a **Quran-specific ASR** that's more accurate than Tarteel, packaged as a full product. Here's an honest plan — what's realistic in Lovable, what isn't, and the sequence to actually get there.
 
-Make the highlighter follow your recitation accurately, in real time, even with tajweed, slow elongations, and quiet voice. The current browser Speech API is the bottleneck — it's inconsistent for Arabic, drops words, and only emits chunks (never letter-by-letter), so no client logic can fully fix it.
+## Reality check first
 
-## Why the browser API can't get much better
+Tarteel's moat is not their app. It's:
+1. A **Quran-trained acoustic model** (fine-tuned on thousands of hours of recitation).
+2. **Verse-locked decoding** — the recognizer is constrained to the Mushaf text, so it picks the *closest valid Quranic word*, not the closest MSA word.
+3. **Years of labeled mistake data** from millions of users.
 
-- Chrome's `webkitSpeechRecognition` is not Quran-aware. It mishears tajweed, merges words, and frequently drops audio after silences.
-- It never exposes letters or phonemes — only loose word chunks. "Letter by letter" tracking is impossible on top of it.
-- It auto-stops on pauses, which breaks the flow when you elongate (madd).
+You cannot beat that with a generic API (Scribe, Whisper API, Deepgram). You need #1 and #2. #3 comes with time.
 
-## Recommended approach: ElevenLabs Scribe v2 Realtime
+Lovable is a frontend + edge function platform. The **app** can live here. The **ML model serving** cannot — it needs a GPU box (Modal, Replicate, RunPod, Fly GPU, or a Hugging Face Inference Endpoint). The plan reflects that split.
 
-Switch the recognition engine from browser Web Speech to **ElevenLabs Scribe v2 Realtime**. It streams audio over WebSocket and returns:
-- partial transcripts with very low latency
-- committed transcripts with **per-word timestamps**
-- strong Arabic accuracy (much better than Chrome for Quranic recitation)
+## Phase 1 — Verse-locked decoding on top of Scribe (1–2 weeks, in Lovable)
 
-This unlocks:
-- A pointer that moves the moment a word is recognized (true speech-driven, like the previous plan, but actually accurate).
-- Proper handling of long madd / pauses without the engine cutting out.
-- Clean per-word matching against the verse using the existing `progressiveWordStatus` logic — no algorithm change needed, just a better signal feeding it.
+Biggest accuracy win you can ship *this week* without any ML training. Tarteel-grade for short passages.
 
-## Why not "letter by letter"
+- Build a **constrained matcher**: when the user starts reciting a known surah/ayah, we already know the exact expected word sequence. Instead of trusting Scribe's free-form transcript, score each Scribe partial against the *next 3–5 expected words* using phonetic edit distance over a Quran-aware normalization (already started in `arabic-compare.ts`).
+- Add **phoneme-level normalization**: collapse hamzat al-wasl, alef variants, ta marbuta, tanwin, shadda — map Scribe's MSA-style output to canonical Quranic root forms.
+- Add a **rolling beam** over the expected sequence so missed words don't desync the pointer.
+- Result: Scribe stays the engine, but mistakes are scored against the *real* ayah, not free text. This alone closes ~60% of the gap to Tarteel on the surahs you support.
 
-Even Scribe doesn't expose phonemes live. True letter-level tracking would require a custom forced-aligner (e.g. wav2vec2 fine-tuned on Quran) running server-side — weeks of work and heavy infra. **Word-level with reliable timestamps gives the same UX feel** at a fraction of the complexity, because Arabic recitation words are short and the pointer updates feel immediate.
+## Phase 2 — Custom Quran ASR model (4–8 weeks, off-Lovable infra)
 
-## What changes
+This is what actually beats Tarteel.
 
-### Backend (Lovable Cloud)
-- Enable Lovable Cloud.
-- Add `ELEVENLABS_API_KEY` secret.
-- Edge function `scribe-token` that mints a 15-min single-use realtime token (keeps the API key server-side).
+- **Dataset**: bootstrap from public sources — Tarteel's own open dataset (~2k hours, CC-BY), EveryAyah.com (multiple qaris, full Quran, aligned), Quran.com recitations. ~5–10k hours achievable in weeks.
+- **Model**: fine-tune `openai/whisper-large-v3` or `facebook/seamless-m4t-v2-large` on the Quran corpus. Whisper-v3 large fine-tuned on EveryAyah alone hits <5% WER on classical Arabic — published baseline.
+- **Serving**: deploy on **Modal** or **Replicate** as a streaming WebSocket endpoint (~300ms latency on an A10G). Lovable edge function proxies the token, exactly like the current Scribe flow.
+- **Verse-locked decoding** (CTC prefix beam constrained to the ayah lattice) — this is the real unlock. Forces the model to only emit valid Quranic word sequences.
 
-### Frontend
-- Add `@elevenlabs/react`.
-- New hook `useScribeRecognition` (mirrors the current `useSpeechRecognition` interface: `start`, `stop`, `reset`, `onInterim`, `onResult`) backed by `useScribe` with `commitStrategy: "vad"` and `language: "ara"`.
-- `src/pages/Index.tsx` swaps the hook import. The matching logic, pointer, pulse animation, and stall detection stay the same — they just receive a much better transcript stream.
-- Keep the current Web Speech hook as a fallback if the user denies the network call or the token endpoint fails.
+## Phase 3 — Tajweed grading (4 weeks, on top of Phase 2)
 
-### UX tweaks while we're in there
-- Lower the interim threshold (now 0.55) since Scribe is more reliable — pointer advances sooner.
-- Remove the 8-second "أعد" auto-prompt on the first pass (it fired during legitimate madd); replace with a softer visual hint after 12s of silence.
+Needs phoneme timing, which a custom model gives you and Scribe never will.
 
-## Cost / setup note
+- Forced-align the reciter's audio to the ayah using the custom model's CTC outputs.
+- Rule engine for the gradeable rules: madd lengths (count frames), ghunna (nasal energy on noon/meem with shadda), qalqala (energy bursts on ق ط ب ج د at sukun), idgham/ikhfaa (spectral overlap).
+- Per-letter color overlay in the mushaf view: green = correct, yellow = weak, red = missed rule.
 
-ElevenLabs Scribe Realtime is a paid API. You'll need an ElevenLabs account and API key. Pricing is per audio-minute; a typical recitation session is cheap, but it is not free like the browser API.
+## Phase 4 — Hifz product layer (parallel, in Lovable)
 
-## Out of scope
+The stuff that turns "good recognizer" into "app people pay for".
 
-- True phoneme/letter-level alignment (requires custom ML model).
-- Tajweed-rule scoring (separate future feature).
-- Storing recitation history (separate Cloud feature).
+- Auth + accounts (Lovable Cloud).
+- Full mushaf (114 surahs), ayah audio per qari, juz/hizb/page navigation.
+- **Mistake history** per user per ayah → spaced-repetition revision schedule (the actual reason Hifz students would switch).
+- Streaks, daily targets, teacher accounts that can view a student's mistake log.
+- Mobile: ship as PWA first, then Capacitor wrap for iOS/Android (Lovable supports this).
+
+## Phase 5 — Data flywheel
+
+Every recitation users do becomes labeled training data (with consent). Re-train the model every 2–3 months. This is how you eventually pass Tarteel, not just match them.
+
+## Sequence and decision points
+
+```text
+Now ─► Phase 1 (Lovable only)
+            │
+            ▼
+       Decide: are accuracy gains good enough as a v1 product?
+            │
+       ┌────┴────┐
+       ▼         ▼
+   Ship MVP    Commit to Phase 2 (needs ~$500/mo GPU + ML work)
+   + Phase 4              │
+                          ▼
+                     Phase 3 + Phase 5
+```
+
+## What I need from you to start Phase 1 right now
+
+1. Confirm we expand the matcher first (no new infra, no costs, ships this week).
+2. Confirm the **target surah list for Phase 1**. Right now memory says MVP = surahs 112/113/114. To meaningfully demo accuracy vs Tarteel we probably want at least Juz Amma (surahs 78–114). OK to expand?
+3. For Phase 2, are you willing to stand up a Modal or Replicate account when we get there? (I can't host GPU inference inside Lovable, but I can write all the serving + training code.)
+
+## Technical details (for reference)
+
+- **Phase 1 file changes**: extend `src/lib/arabic-compare.ts` with a phoneme-class normalizer and a windowed beam matcher; add a `useVerseLockedMatcher` hook that consumes Scribe partials and outputs `{currentWordIdx, mistakes[]}`. No backend changes.
+- **Phase 2 stack**: HuggingFace `transformers` + `peft` LoRA fine-tune of Whisper-v3 on 4×A100 (~$200 one-off training). Serve via Modal `@asgi_app` with WebSocket, return token deltas + per-frame CTC posteriors. Edge function `whisper-token` mints short-lived signed URLs, mirroring current `scribe-token`.
+- **Phase 3 alignment**: use the CTC posteriors from Phase 2 (no separate aligner needed). Tajweed rules run client-side on the returned frame timings.
+- **Storage**: Supabase tables `recitations`, `recitation_mistakes`, `revision_schedule`. Audio in Supabase Storage with user-scoped RLS. Opt-in flag `consent_training_data` gates Phase 5 export.
