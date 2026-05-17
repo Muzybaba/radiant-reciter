@@ -284,7 +284,7 @@ const Index = () => {
         </header>
 
         {isSupported && (
-          <div className="flex justify-center items-center gap-3 mb-8">
+          <div className="flex justify-center items-center gap-3 mb-4">
             <button
               onClick={handleReciteToggle}
               className={`flex items-center gap-3 px-8 py-4 rounded-full text-lg font-medium transition-all duration-300 ${
@@ -298,6 +298,21 @@ const Index = () => {
             </button>
           </div>
         )}
+
+        <div className="flex justify-center mb-8">
+          <button
+            onClick={() => setTeacherMode((v) => !v)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium tracking-wide uppercase transition-all duration-200 border ${
+              teacherMode
+                ? "bg-foreground text-background border-foreground"
+                : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
+            }`}
+            title="Tap any mistake-flagged word to mark it as correctly recited. Saved for future matching."
+          >
+            <GraduationCap size={14} />
+            Teacher Mode {teacherMode ? "On" : "Off"}
+          </button>
+        </div>
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -320,6 +335,8 @@ const Index = () => {
                       : verseWordStatuses[idx]
                   }
                   onTap={() => handleMistake(verse.number)}
+                  teacherMode={teacherMode}
+                  onWordTap={(wi) => handleWordTap(idx, wi)}
                 />
               </div>
             ))}
@@ -327,7 +344,11 @@ const Index = () => {
         </AnimatePresence>
 
         <p className="text-center label-ui mt-16 opacity-50">
-          {isReciting ? "Reciting... mistakes will be highlighted" : "Tap a verse to mark a mistake, or press Start Reciting"}
+          {teacherMode
+            ? "Teacher mode — tap a red word to teach the matcher it was correct"
+            : isReciting
+              ? "Reciting... mistakes will be highlighted"
+              : "Tap a verse to mark a mistake, or press Start Reciting"}
         </p>
       </div>
 
