@@ -23,6 +23,76 @@ export function normalizeArabic(text: string): string {
 }
 
 /**
+ * Phoneme-class normalization for verse-locked matching.
+ * Collapses Quranic letters that MSA-trained ASR engines (Scribe) routinely
+ * confuse — emphatic vs plain consonants, interdentals, etc. Used ONLY for
+ * matching/alignment, never for display.
+ *
+ * Mappings are intentionally conservative: pairs that Scribe confuses in
+ * practice on Quranic recitation, not full phonetic classes.
+ */
+const PHONEME_MAP: Record<string, string> = {
+  // emphatic -> plain
+  "\u0635": "\u0633", // ص -> س
+  "\u0636": "\u062F", // ض -> د
+  "\u0637": "\u062A", // ط -> ت
+  "\u0638": "\u0632", // ظ -> ز
+  // interdentals -> sibilants/dentals (Scribe MSA output)
+  "\u062B": "\u0633", // ث -> س
+  "\u0630": "\u0632", // ذ -> ز
+  // velar/uvular collapse (Scribe often substitutes)
+  "\u0642": "\u0643", // ق -> ك
+  // pharyngeal/glottal collapse (already mapped ta-marbuta -> ه above)
+  "\u062D": "\u0647", // ح -> ه
+  "\u062E": "\u0647", // خ -> ه
+  "\u063A": "\u0639", // غ -> ع
+};
+
+export function phonemicNormalize(text: string): string {
+  const base = normalizeArabic(text);
+  let out = "";
+  for (const ch of base) out += PHONEME_MAP[ch] ?? ch;
+  return out;
+}
+
+/**
+ * Levenshtein distance between two phoneme strings, normalized 0..1.
+ */
+function levenshteinNorm(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length || !b.length) return 1;
+  const m = a.length, n = b.length;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n] / Math.max(m, n);
+}
+
+/**
+ * Phonetic distance 0..1 between two Arabic word forms (already collapsed via
+ * phoneme classes). Also discounts prefix matches (in-progress word).
+ */
+function phoneticDistance(a: string, b: string): number {
+  if (!a || !b) return 1;
+  if (a === b) return 0;
+  const shorter = a.length < b.length ? a : b;
+  const longer = a.length < b.length ? b : a;
+  if (shorter.length >= 2 && longer.startsWith(shorter)) {
+    // partial / in-progress word — strong match
+    return 0.15;
+  }
+  return levenshteinNorm(a, b);
+}
+
+/**
  * True if two normalized Arabic words are "close enough" — exact, prefix,
  * or short edit distance. Used so the live pointer follows mid-word.
  */
