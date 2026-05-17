@@ -210,92 +210,99 @@ export function diffWords(spoken: string, correct: string): WordDiff[] {
  * Words matched so far = "correct", spoken but not matched = "missed", not yet reached = "default".
  */
 export function progressiveWordStatus(spoken: string, correct: string): WordStatus[] {
-  const bNorm = normalizeArabic(correct);
-
   const correctOriginalWords = correct
     .replace(/\u0640/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .split(" ");
 
-  if (!bNorm) {
+  const wordsCorrect = correctOriginalWords.map((w) => phonemicNormalize(w)).filter(Boolean);
+  if (wordsCorrect.length === 0) {
     return correctOriginalWords.map(() => "default");
   }
 
-  const aNorm = normalizeArabic(spoken);
-
-  // No spoken words yet — mark first word as current pointer
-  if (!aNorm) {
+  const spokenNorm = phonemicNormalize(spoken);
+  if (!spokenNorm) {
     const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
     statuses[0] = "current";
     return statuses;
   }
+  const wordsSpoken = spokenNorm.split(" ");
 
-  const wordsSpoken = aNorm.split(" ");
-  const wordsCorrect = bNorm.split(" ");
+  // ----- Verse-locked Needleman-Wunsch alignment -----
+  // Score: lower is better. Substitution = phoneticDistance(0..1).
+  // Insertion (spoken extra word) = 0.7. Deletion (skipped correct word) = 0.9
+  // — penalize skipping ayah words harder so we don't drop them silently.
+  const INS = 0.7; // skip a spoken word
+  const DEL = 0.9; // skip a correct word
+  const MATCH_THRESHOLD = 0.45; // sub cost <= this counts as "correct"
 
-  const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
-  let spokenIdx = 0;
-  let lastMatchedCorrectIdx = -1;
-  const lastSpokenIdx = wordsSpoken.length - 1;
+  const m = wordsSpoken.length;
+  const n = wordsCorrect.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  const bt: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  // 0 = diag, 1 = up (ins, skip spoken), 2 = left (del, skip correct)
 
-  for (let ci = 0; ci < wordsCorrect.length; ci++) {
-    if (spokenIdx >= wordsSpoken.length) break;
+  for (let i = 1; i <= m; i++) { dp[i][0] = i * INS; bt[i][0] = 1; }
+  for (let j = 1; j <= n; j++) { dp[0][j] = j * DEL; bt[0][j] = 2; }
 
-    const isLastSpoken = spokenIdx === lastSpokenIdx;
-    const sw = wordsSpoken[spokenIdx];
-    const cw = wordsCorrect[ci];
-
-    // Direct / fuzzy match
-    if (wordsClose(sw, cw)) {
-      statuses[ci] = "correct";
-      lastMatchedCorrectIdx = ci;
-      spokenIdx++;
-      continue;
+  for (let i = 1; i <= m; i++) {
+    const isLastSpoken = i === m;
+    for (let j = 1; j <= n; j++) {
+      const sub = phoneticDistance(wordsSpoken[i - 1], wordsCorrect[j - 1]);
+      const diag = dp[i - 1][j - 1] + sub;
+      const up = dp[i - 1][j] + INS;
+      // discourage trailing deletions of correct words past the last spoken word
+      const left = dp[i][j - 1] + (isLastSpoken ? DEL * 0.4 : DEL);
+      let best = diag, dir = 0;
+      if (up < best) { best = up; dir = 1; }
+      if (left < best) { best = left; dir = 2; }
+      dp[i][j] = best;
+      bt[i][j] = dir;
     }
-
-    // Look ahead in spoken (insertions / filler)
-    let consumedSpoken = 0;
-    let matched = false;
-    for (let look = 1; look <= 3 && spokenIdx + look < wordsSpoken.length; look++) {
-      if (wordsClose(wordsSpoken[spokenIdx + look], cw)) {
-        statuses[ci] = "correct";
-        lastMatchedCorrectIdx = ci;
-        spokenIdx += look + 1;
-        consumedSpoken = look + 1;
-        matched = true;
-        break;
-      }
-    }
-    if (matched) continue;
-
-    // Look ahead in correct (skipped a word)
-    let skipped = false;
-    for (let look = 1; look <= 2 && ci + look < wordsCorrect.length; look++) {
-      if (wordsClose(wordsCorrect[ci + look], sw)) {
-        statuses[ci] = "missed";
-        lastMatchedCorrectIdx = ci;
-        skipped = true;
-        break;
-      }
-    }
-    if (skipped) continue;
-
-    // Last spoken word is a tail / partial of current correct word -> active pointer here
-    if (isLastSpoken && (cw.startsWith(sw) || sw.startsWith(cw))) {
-      // don't mark as missed — let pointer sit on this word
-      break;
-    }
-
-    statuses[ci] = "missed";
-    lastMatchedCorrectIdx = ci;
-    spokenIdx++;
   }
 
-  // Active pointer = the next word user should say
-  const nextIdx = lastMatchedCorrectIdx + 1;
-  if (nextIdx < statuses.length) {
-    statuses[nextIdx] = "current";
+  // Backtrack to mark statuses
+  const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
+  let i = m, j = n;
+  let lastMatchedCorrectIdx = -1;
+  let pendingCurrent = -1; // correct idx where last spoken word landed as a partial
+
+  while (i > 0 && j > 0) {
+    const dir = bt[i][j];
+    if (dir === 0) {
+      const sub = phoneticDistance(wordsSpoken[i - 1], wordsCorrect[j - 1]);
+      if (sub <= MATCH_THRESHOLD) {
+        statuses[j - 1] = "correct";
+        if (j - 1 > lastMatchedCorrectIdx) lastMatchedCorrectIdx = j - 1;
+      } else if (i === m && sub <= 0.7) {
+        // last spoken word is a noisy partial of this correct word
+        pendingCurrent = j - 1;
+      } else {
+        statuses[j - 1] = "missed";
+        if (j - 1 > lastMatchedCorrectIdx) lastMatchedCorrectIdx = j - 1;
+      }
+      i--; j--;
+    } else if (dir === 1) {
+      // spoken word with no correct counterpart — just consume
+      i--;
+    } else {
+      // correct word skipped — mark missed only if we've already started reciting past it
+      if (j - 1 <= lastMatchedCorrectIdx) {
+        statuses[j - 1] = "missed";
+      }
+      j--;
+    }
+  }
+  // remaining deletions at start: leave as default
+  while (i > 0) i--;
+
+  // Current pointer
+  if (pendingCurrent >= 0) {
+    statuses[pendingCurrent] = "current";
+  } else {
+    const nextIdx = lastMatchedCorrectIdx + 1;
+    if (nextIdx < statuses.length) statuses[nextIdx] = "current";
   }
 
   return statuses;
