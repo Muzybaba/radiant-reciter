@@ -28,14 +28,42 @@ const Index = () => {
   const [completedVerses, setCompletedVerses] = useState<Set<number>>(new Set());
   const [displayedWordStatuses, setDisplayedWordStatuses] = useState<WordStatus[]>([]);
   const [verseWordStatuses, setVerseWordStatuses] = useState<Record<number, WordStatus[]>>({});
+  const [teacherMode, setTeacherMode] = useState(false);
+  // Last alignment per verse — needed so teacher taps know which spoken token
+  // was paired with each correct word.
+  const verseAlignedSpoken = useRef<Record<number, (string | null)[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
 
+  // Subscribe to corrections store so the aligner picks up new accepted pairs.
+  const correctionsTick = useSyncExternalStore(
+    subscribeCorrections,
+    () => getAcceptedPairs().size + getAcceptedSlots().size,
+    () => 0
+  );
+
   const activeSurah = surahs.find((s) => s.id === activeSurahId)!;
   const currentMistakes = mistakes[activeSurahId] || [];
   const activeVerseIndexRef = useRef(0);
+
+  // Apply position-specific slot overrides on top of aligner statuses.
+  const applySlotOverrides = useCallback(
+    (statuses: WordStatus[], verseIdx: number): WordStatus[] => {
+      const slots = getAcceptedSlots();
+      if (slots.size === 0) return statuses;
+      let next: WordStatus[] | null = null;
+      for (let wi = 0; wi < statuses.length; wi++) {
+        if (slots.has(slotKey(activeSurahId, verseIdx, wi)) && statuses[wi] !== "correct") {
+          next = next ?? [...statuses];
+          next[wi] = "correct";
+        }
+      }
+      return next ?? statuses;
+    },
+    [activeSurahId]
+  );
 
   const markMistake = useCallback((verseNumber: number) => {
     setMistakes((prev) => {
