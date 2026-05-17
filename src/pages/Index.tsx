@@ -1,12 +1,24 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, GraduationCap } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import SurahSelector from "@/components/SurahSelector";
 import VerseCard from "@/components/VerseCard";
 import MistakeSummary from "@/components/MistakeSummary";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
-import { compareTexts, progressiveWordStatus, type WordStatus } from "@/lib/arabic-compare";
+import {
+  compareTexts,
+  verseLockedAlign,
+  progressiveWordStatus,
+  type WordStatus,
+} from "@/lib/arabic-compare";
+import {
+  acceptCorrection,
+  getAcceptedPairs,
+  getAcceptedSlots,
+  slotKey,
+  subscribeCorrections,
+} from "@/lib/corrections-store";
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
