@@ -45,6 +45,8 @@ const VerseCard = ({
 }: VerseCardProps) => {
   const words = text.split(/\s+/);
   const hasWordStatuses = wordStatuses && wordStatuses.length > 0;
+  const wordsClickable = teacherMode && hasWordStatuses && !!onWordTap;
+
   const wordsContent = (
     <p className="flex flex-wrap gap-x-2">
       {words.map((word, i) => {
