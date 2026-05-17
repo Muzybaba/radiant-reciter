@@ -205,6 +205,64 @@ const Index = () => {
     setCompletedVerses(new Set());
   };
 
+  // Teacher review: tap a missed/current word to mark it correctly recited.
+  // Saves either a global (correct, spoken) pair or a position override,
+  // then re-runs alignment so the UI updates immediately.
+  const handleWordTap = useCallback(
+    (verseIdx: number, wordIdx: number) => {
+      const verse = activeSurah.verses[verseIdx];
+      if (!verse) return;
+      const words = verse.text.replace(/\u0640/g, "").trim().split(/\s+/);
+      const correctWord = words[wordIdx];
+      if (!correctWord) return;
+      const alignedSpoken = verseAlignedSpoken.current[verseIdx]?.[wordIdx] ?? null;
+
+      acceptCorrection({
+        surahId: activeSurahId,
+        verseIdx,
+        wordIdx,
+        correctWord,
+        spokenWord: alignedSpoken,
+      });
+
+      // Re-align this verse with the updated pairs and refresh its display.
+      const transcript = verseTranscripts.current[verseIdx] ?? "";
+      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, {
+        acceptedPairs: getAcceptedPairs(),
+      });
+      verseAlignedSpoken.current[verseIdx] = alignedSpokenNorm;
+      const next = applySlotOverrides(statuses, verseIdx);
+
+      if (isReciting && verseIdx === activeVerseIndex) {
+        setDisplayedWordStatuses(next);
+      } else {
+        const finalStatuses: WordStatus[] = next.map(s => s === "current" ? "default" : s);
+        setVerseWordStatuses(prev => ({ ...prev, [verseIdx]: finalStatuses }));
+      }
+    },
+    [activeSurah, activeSurahId, isReciting, activeVerseIndex, applySlotOverrides]
+  );
+
+  // When corrections change (e.g. from another tab or after acceptCorrection),
+  // re-run alignment for every verse with a stored transcript.
+  useEffect(() => {
+    const pairs = getAcceptedPairs();
+    const updates: Record<number, WordStatus[]> = {};
+    for (const [idxStr, transcript] of Object.entries(verseTranscripts.current)) {
+      const idx = Number(idxStr);
+      const verse = activeSurah.verses[idx];
+      if (!verse) continue;
+      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, { acceptedPairs: pairs });
+      verseAlignedSpoken.current[idx] = alignedSpokenNorm;
+      const next = applySlotOverrides(statuses, idx);
+      updates[idx] = next.map(s => s === "current" ? "default" : s);
+    }
+    if (Object.keys(updates).length > 0) {
+      setVerseWordStatuses(prev => ({ ...prev, ...updates }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correctionsTick, activeSurahId]);
+
   const getVerseStatus = (idx: number, verseNumber: number): "default" | "active" | "mistake" | "success" => {
     if (isReciting && idx === activeVerseIndex) return "active";
     if (currentMistakes.includes(verseNumber)) return "mistake";
