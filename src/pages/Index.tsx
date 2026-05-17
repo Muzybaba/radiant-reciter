@@ -86,8 +86,13 @@ const Index = () => {
       verseTranscripts.current[idx] = transcript;
       lastTranscriptTime.current = Date.now();
 
-      const statuses = progressiveWordStatus(transcript, verse.text);
-      // Directly update displayed statuses — speech-driven, no timer
+      const { statuses: rawStatuses, alignedSpokenNorm } = verseLockedAlign(
+        transcript,
+        verse.text,
+        { acceptedPairs: getAcceptedPairs() }
+      );
+      verseAlignedSpoken.current[idx] = alignedSpokenNorm;
+      const statuses = applySlotOverrides(rawStatuses, idx);
       setDisplayedWordStatuses(statuses);
 
       const score = compareTexts(transcript, verse.text);
@@ -111,7 +116,7 @@ const Index = () => {
       }
       return true;
     },
-    [activeSurah, markMistake, finishRecitation]
+    [activeSurah, markMistake, finishRecitation, applySlotOverrides]
   );
 
   const handleResult = useCallback(
