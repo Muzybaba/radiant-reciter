@@ -45,13 +45,40 @@ const VerseCard = ({
 }: VerseCardProps) => {
   const words = text.split(/\s+/);
   const hasWordStatuses = wordStatuses && wordStatuses.length > 0;
-  const wordsClickable = teacherMode && hasWordStatuses && !!onWordTap;
+  const wordsContent = (
+    <p className="flex flex-wrap gap-x-2">
+      {words.map((word, i) => {
+        const ws = hasWordStatuses ? (wordStatuses[i] || "default") : "default";
+        const dimUpcoming = status === "active" && hasWordStatuses && ws === "default";
+        const isMissed = ws === "missed";
+        const teachable = wordsClickable && isMissed;
 
-  const handleVerseTap = () => {
-    // In teacher mode, taps on words should win — only fall through if nothing
-    // clickable was hit.
-    if (!wordsClickable) onTap();
-  };
+        const baseClass = `transition-all duration-300 ${wordColorMap[ws]} ${dimUpcoming ? "opacity-40" : ""}`;
+
+        if (teachable) {
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onWordTap?.(i);
+              }}
+              className={`${baseClass} underline decoration-dotted underline-offset-4 cursor-pointer hover:bg-[hsl(var(--mistake-bg))] rounded px-1 -mx-1`}
+              title="Mark as correctly recited"
+            >
+              {word}
+            </button>
+          );
+        }
+        return (
+          <span key={i} className={baseClass}>
+            {word}
+          </span>
+        );
+      })}
+    </p>
+  );
 
   return (
     <motion.div
@@ -64,47 +91,15 @@ const VerseCard = ({
         <span className={`label-ui mt-3 shrink-0 tabular-nums ${numberStyles[status]}`}>
           {number}
         </span>
-        <div className="font-arabic text-4xl leading-[2.5] flex-1 text-right">
-          <p className="flex flex-wrap gap-x-2">
-            {words.map((word, i) => {
-              const ws = hasWordStatuses ? (wordStatuses[i] || "default") : "default";
-              const dimUpcoming = status === "active" && hasWordStatuses && ws === "default";
-              const isMissed = ws === "missed";
-              const teachable = wordsClickable && isMissed;
-
-              const baseClass = `transition-all duration-300 ${wordColorMap[ws]} ${dimUpcoming ? "opacity-40" : ""}`;
-
-              if (teachable) {
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onWordTap?.(i);
-                    }}
-                    className={`${baseClass} underline decoration-dotted underline-offset-4 cursor-pointer hover:bg-[hsl(var(--mistake-bg))] rounded px-1 -mx-1`}
-                    title="Mark as correctly recited"
-                  >
-                    {word}
-                  </button>
-                );
-              }
-              return (
-                <span key={i} className={baseClass}>
-                  {word}
-                </span>
-              );
-            })}
-          </p>
-          {!wordsClickable && (
-            <button
-              onClick={handleVerseTap}
-              className="absolute inset-0 w-full h-full"
-              aria-label={`Mark verse ${number}`}
-            />
-          )}
-        </div>
+        {wordsClickable ? (
+          <div className="font-arabic text-4xl leading-[2.5] flex-1 text-right">
+            {wordsContent}
+          </div>
+        ) : (
+          <button onClick={onTap} className="font-arabic text-4xl leading-[2.5] flex-1 text-right">
+            {wordsContent}
+          </button>
+        )}
       </div>
     </motion.div>
   );
