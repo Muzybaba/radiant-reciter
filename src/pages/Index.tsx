@@ -268,7 +268,7 @@ const Index = () => {
       const idx = Number(idxStr);
       const verse = activeSurah.verses[idx];
       if (!verse) continue;
-      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, { acceptedPairs: pairs });
+      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, { acceptedPairs: pairs, emitWeak: true });
       verseAlignedSpoken.current[idx] = alignedSpokenNorm;
       const next = applySlotOverrides(statuses, idx);
       updates[idx] = next.map(s => s === "current" ? "default" : s);
