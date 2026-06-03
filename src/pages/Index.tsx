@@ -34,8 +34,13 @@ const Index = () => {
   const verseAlignedSpoken = useRef<Record<number, (string | null)[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
+  // Cumulative-transcript length at the moment we advanced to each verse.
+  // Slicing here yields just the audio for the current ayah — critical:
+  // without it, every new ayah is aligned against ALL previously-spoken text.
+  const verseStartOffset = useRef<Record<number, number>>({ 0: 0 });
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
+
 
   // Subscribe to corrections store so the aligner picks up new accepted pairs.
   const correctionsTick = useSyncExternalStore(
@@ -78,10 +83,14 @@ const Index = () => {
   }, []);
 
   const advanceVerse = useCallback(
-    (transcript: string, threshold: number) => {
+    (fullTranscript: string, threshold: number) => {
       const idx = activeVerseIndexRef.current;
       const verse = activeSurah.verses[idx];
       if (!verse) return false;
+
+      // Slice off everything spoken before this ayah began.
+      const offset = verseStartOffset.current[idx] ?? 0;
+      const transcript = fullTranscript.slice(offset).trim();
 
       verseTranscripts.current[idx] = transcript;
       lastTranscriptTime.current = Date.now();
@@ -89,7 +98,7 @@ const Index = () => {
       const { statuses: rawStatuses, alignedSpokenNorm } = verseLockedAlign(
         transcript,
         verse.text,
-        { acceptedPairs: getAcceptedPairs() }
+        { acceptedPairs: getAcceptedPairs(), emitWeak: true }
       );
       verseAlignedSpoken.current[idx] = alignedSpokenNorm;
       const statuses = applySlotOverrides(rawStatuses, idx);
@@ -109,6 +118,8 @@ const Index = () => {
       if (idx < activeSurah.verses.length - 1) {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
+        // Remember where the next ayah's audio starts in the cumulative transcript.
+        verseStartOffset.current[nextIdx] = fullTranscript.length;
         setActiveVerseIndex(nextIdx);
         setDisplayedWordStatuses([]);
       } else {
@@ -118,6 +129,7 @@ const Index = () => {
     },
     [activeSurah, markMistake, finishRecitation, applySlotOverrides]
   );
+
 
   const handleResult = useCallback(
     (transcript: string) => {
@@ -182,7 +194,9 @@ const Index = () => {
       setDisplayedWordStatuses([]);
       setVerseWordStatuses({});
       verseTranscripts.current = {};
+      verseStartOffset.current = { 0: 0 };
       lastTranscriptTime.current = Date.now();
+
       stallCooldown.current = false;
       reset();
       setIsReciting(true);
@@ -229,7 +243,9 @@ const Index = () => {
       const transcript = verseTranscripts.current[verseIdx] ?? "";
       const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, {
         acceptedPairs: getAcceptedPairs(),
+        emitWeak: true,
       });
+
       verseAlignedSpoken.current[verseIdx] = alignedSpokenNorm;
       const next = applySlotOverrides(statuses, verseIdx);
 
@@ -252,7 +268,7 @@ const Index = () => {
       const idx = Number(idxStr);
       const verse = activeSurah.verses[idx];
       if (!verse) continue;
-      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, { acceptedPairs: pairs });
+      const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, { acceptedPairs: pairs, emitWeak: true });
       verseAlignedSpoken.current[idx] = alignedSpokenNorm;
       const next = applySlotOverrides(statuses, idx);
       updates[idx] = next.map(s => s === "current" ? "default" : s);

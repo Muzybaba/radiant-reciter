@@ -30,9 +30,11 @@ const numberStyles: Record<VerseStatus, string> = {
 const wordColorMap: Record<WordStatus, string> = {
   default: "",
   correct: "text-[hsl(var(--success-text))]",
+  weak: "text-[hsl(var(--weak-text))] underline decoration-dotted underline-offset-4 decoration-[hsl(var(--weak-text)/0.5)]",
   missed: "text-[hsl(var(--mistake-text))]",
   current: "text-primary rounded-sm px-1.5 py-0.5 -mx-0.5 animate-word-pulse",
 };
+
 
 const VerseCard = ({
   number,
