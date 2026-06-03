@@ -34,8 +34,13 @@ const Index = () => {
   const verseAlignedSpoken = useRef<Record<number, (string | null)[]>>({});
   const verseRefs = useRef<(HTMLDivElement | null)[]>([]);
   const verseTranscripts = useRef<Record<number, string>>({});
+  // Cumulative-transcript length at the moment we advanced to each verse.
+  // Slicing here yields just the audio for the current ayah — critical:
+  // without it, every new ayah is aligned against ALL previously-spoken text.
+  const verseStartOffset = useRef<Record<number, number>>({ 0: 0 });
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
+
 
   // Subscribe to corrections store so the aligner picks up new accepted pairs.
   const correctionsTick = useSyncExternalStore(
