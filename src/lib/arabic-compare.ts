@@ -158,7 +158,23 @@ export function compareTexts(spoken: string, correct: string): number {
 }
 
 export type WordDiff = { word: string; status: "correct" | "missed" };
-export type WordStatus = "default" | "correct" | "missed" | "current";
+export type WordStatus = "default" | "correct" | "weak" | "missed" | "current";
+
+/**
+ * Verse-locked alignment result.
+ *  - statuses:           per correct-word display status
+ *  - alignedSpokenNorm:  for each correct word, the normalized spoken token the
+ *                        aligner paired with it (or null if none). Used by the
+ *                        teacher-review flow to save (correct, spoken) pairs.
+ *  - confidences:        per correct-word match confidence in [0,1]. 1 = exact,
+ *                        0 = no spoken token paired.
+ */
+export interface VerseLockedAlignment {
+  statuses: WordStatus[];
+  alignedSpokenNorm: (string | null)[];
+  confidences: number[];
+}
+
 
 /**
  * Returns per-word diff of the correct verse against spoken text.
