@@ -83,10 +83,14 @@ const Index = () => {
   }, []);
 
   const advanceVerse = useCallback(
-    (transcript: string, threshold: number) => {
+    (fullTranscript: string, threshold: number) => {
       const idx = activeVerseIndexRef.current;
       const verse = activeSurah.verses[idx];
       if (!verse) return false;
+
+      // Slice off everything spoken before this ayah began.
+      const offset = verseStartOffset.current[idx] ?? 0;
+      const transcript = fullTranscript.slice(offset).trim();
 
       verseTranscripts.current[idx] = transcript;
       lastTranscriptTime.current = Date.now();
@@ -94,7 +98,7 @@ const Index = () => {
       const { statuses: rawStatuses, alignedSpokenNorm } = verseLockedAlign(
         transcript,
         verse.text,
-        { acceptedPairs: getAcceptedPairs() }
+        { acceptedPairs: getAcceptedPairs(), emitWeak: true }
       );
       verseAlignedSpoken.current[idx] = alignedSpokenNorm;
       const statuses = applySlotOverrides(rawStatuses, idx);
@@ -114,6 +118,8 @@ const Index = () => {
       if (idx < activeSurah.verses.length - 1) {
         const nextIdx = idx + 1;
         activeVerseIndexRef.current = nextIdx;
+        // Remember where the next ayah's audio starts in the cumulative transcript.
+        verseStartOffset.current[nextIdx] = fullTranscript.length;
         setActiveVerseIndex(nextIdx);
         setDisplayedWordStatuses([]);
       } else {
@@ -123,6 +129,7 @@ const Index = () => {
     },
     [activeSurah, markMistake, finishRecitation, applySlotOverrides]
   );
+
 
   const handleResult = useCallback(
     (transcript: string) => {
