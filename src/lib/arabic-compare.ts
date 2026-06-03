@@ -221,20 +221,14 @@ export function diffWords(spoken: string, correct: string): WordDiff[] {
 }
 
 /**
- * Verse-locked alignment result.
- *  - statuses:           per correct-word display status
- *  - alignedSpokenNorm:  for each correct word, the normalized spoken token the
- *                        aligner paired with it (or null if none). Used by the
- *                        teacher-review flow to save (correct, spoken) pairs.
+ * Verse-locked alignment result. Already declared above with `confidences`.
  */
-export interface VerseLockedAlignment {
-  statuses: WordStatus[];
-  alignedSpokenNorm: (string | null)[];
-}
 
 export interface VerseLockedOptions {
   /** Set of "${correctNorm}|${spokenNorm}" pairs to treat as a perfect match. */
   acceptedPairs?: Set<string>;
+  /** If true, distinguish weakly-matched words (yellow) from confident matches (green). */
+  emitWeak?: boolean;
 }
 
 /**
@@ -257,14 +251,18 @@ export function verseLockedAlign(
   const n = wordsCorrect.length;
 
   if (n === 0) {
-    return { statuses: [], alignedSpokenNorm: [] };
+    return { statuses: [], alignedSpokenNorm: [], confidences: [] };
   }
 
   const spokenNorm = phonemicNormalize(spoken);
   if (!spokenNorm) {
     const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
     statuses[0] = "current";
-    return { statuses, alignedSpokenNorm: new Array(n).fill(null) };
+    return {
+      statuses,
+      alignedSpokenNorm: new Array(n).fill(null),
+      confidences: new Array(n).fill(0),
+    };
   }
 
   const wordsSpoken = spokenNorm.split(" ");
@@ -272,8 +270,11 @@ export function verseLockedAlign(
 
   const INS = 0.7;
   const DEL = 0.9;
-  const MATCH_THRESHOLD = 0.45;
+  const STRONG_THRESHOLD = 0.3;  // <= => "correct" (high-confidence green)
+  const WEAK_THRESHOLD = 0.55;   // <= => "weak"/"correct" depending on emitWeak
+  const PENDING_THRESHOLD = 0.75; // last spoken token still being formed
   const pairs = opts.acceptedPairs;
+  const emitWeak = opts.emitWeak ?? false;
 
   // Substitution cost with teacher-correction lookup
   const subCost = (si: number, ci: number): number => {
@@ -303,6 +304,7 @@ export function verseLockedAlign(
 
   const statuses: WordStatus[] = correctOriginalWords.map(() => "default");
   const alignedSpokenNorm: (string | null)[] = new Array(n).fill(null);
+  const confidences: number[] = new Array(n).fill(0);
   let i = m, j = n;
   let lastMatchedCorrectIdx = -1;
   let pendingCurrent = -1;
@@ -312,10 +314,14 @@ export function verseLockedAlign(
     if (dir === 0) {
       const sub = subCost(i - 1, j - 1);
       alignedSpokenNorm[j - 1] = wordsSpoken[i - 1];
-      if (sub <= MATCH_THRESHOLD) {
+      confidences[j - 1] = Math.max(0, 1 - sub);
+      if (sub <= STRONG_THRESHOLD) {
         statuses[j - 1] = "correct";
         if (j - 1 > lastMatchedCorrectIdx) lastMatchedCorrectIdx = j - 1;
-      } else if (i === m && sub <= 0.7) {
+      } else if (sub <= WEAK_THRESHOLD) {
+        statuses[j - 1] = emitWeak ? "weak" : "correct";
+        if (j - 1 > lastMatchedCorrectIdx) lastMatchedCorrectIdx = j - 1;
+      } else if (i === m && sub <= PENDING_THRESHOLD) {
         pendingCurrent = j - 1;
       } else {
         statuses[j - 1] = "missed";
@@ -340,8 +346,9 @@ export function verseLockedAlign(
     if (nextIdx < statuses.length) statuses[nextIdx] = "current";
   }
 
-  return { statuses, alignedSpokenNorm };
+  return { statuses, alignedSpokenNorm, confidences };
 }
+
 
 /**
  * Backwards-compatible wrapper — just the statuses.
