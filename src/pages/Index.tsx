@@ -243,7 +243,9 @@ const Index = () => {
       const transcript = verseTranscripts.current[verseIdx] ?? "";
       const { statuses, alignedSpokenNorm } = verseLockedAlign(transcript, verse.text, {
         acceptedPairs: getAcceptedPairs(),
+        emitWeak: true,
       });
+
       verseAlignedSpoken.current[verseIdx] = alignedSpokenNorm;
       const next = applySlotOverrides(statuses, verseIdx);
 
