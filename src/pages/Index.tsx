@@ -194,7 +194,9 @@ const Index = () => {
       setDisplayedWordStatuses([]);
       setVerseWordStatuses({});
       verseTranscripts.current = {};
+      verseStartOffset.current = { 0: 0 };
       lastTranscriptTime.current = Date.now();
+
       stallCooldown.current = false;
       reset();
       setIsReciting(true);
