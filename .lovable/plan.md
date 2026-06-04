@@ -1,79 +1,87 @@
-# Make the voice recognition actually feel like Tarteel — all inside Lovable
 
-## How Tarteel actually does it (short version)
+# Make recitation actually work — Mushaf UI + dual-engine voice
 
-Tarteel is not magic. Three things stacked:
+The current card-per-ayah UI and Scribe-only pipeline are why it feels clunky. This round we do two things together: rebuild the reading surface to look like a real mushaf, and rebuild the recognition pipeline so the highlight actually follows your voice.
 
-1. **A Quran-tuned acoustic model.** They fine-tuned Whisper/Conformer on thousands of hours of recitation (Tarteel Dataset, EveryAyah, Quran.com qaris). It already "expects" classical Arabic phonemes — emphatic ص/ض/ط/ظ, ق vs ك, ح vs ه — instead of guessing MSA words.
-2. **Verse-locked decoding.** They never let the recognizer output free text. The decoder is constrained to the mushaf: at every step it picks the most likely *next valid Quranic word from the expected ayah*, not the closest Arabic word. This is the single biggest accuracy unlock.
-3. **Per-letter forced alignment.** Once the audio is matched to the ayah, CTC posteriors tell them exactly which letter you dropped, lengthened, or substituted. That's how the red/green highlighting feels surgical.
+Out of scope for this round: Hadith, Salah times, Tahfiz tracking, multi-page navigation across the whole Quran. We keep the MVP corpus (Surahs 112–114) so we can iterate fast, then expand once it feels right.
 
-We can't ship (1) inside Lovable (no GPU). We **can** ship a much better (2) and a usable (3) — entirely in the app, no new infrastructure, no extra cost beyond Scribe + Lovable AI.
+## 1. Mushaf-style reading surface
 
-## What we'll build — three layers, all in-app
+Replace `VerseCard` + the stacked card list with a single `MushafPage` component.
 
-### Layer A — Verse-locked beam matcher (replaces current aligner)
+- One continuous justified RTL block, Amiri 28–32px, line-height ~2.4 — like a printed mushaf.
+- Ayah numbers rendered inline as small ornamental circles (۝ + Arabic-Indic digit), not as a separate column.
+- No card chrome, no per-ayah borders. The "active ayah" is shown only by softly tinting its background span (warm cream wash on the pressed-paper bg).
+- Word-level state still drives color (correct = success-text, weak = dotted underline, missed = mistake-text, current = primary with subtle pulse). All inline, no panels.
+- Tap-to-jump: tap any word to set it as the cursor (start listening from that ayah). Long-press a word in teacher mode to accept it as correct.
+- Bismillah and surah header rendered once at top in the mushaf header style.
 
-Today `arabic-compare.ts` runs Needleman–Wunsch over the **whole** transcript vs the whole ayah, once per partial. That's why the pointer drifts on long ayahs and why a missed word desyncs everything.
+`SurahSelector` stays as a slim top bar. The big play/listen control becomes a single floating mic button bottom-center.
 
-Replace it with a **rolling beam over the expected sequence**:
+## 2. Recognition engine — dual path
 
-- Maintain `K=5` candidate pointer positions (beams), each with a score.
-- For each new Scribe partial, only score the *last 1–3 spoken tokens* against the *next 3–6 expected words* from each beam — not the full DP.
-- Allow insertions (filler/noise) and deletions (skipped word) with caps, so one missed word can't desync the rest of the ayah.
-- Pointer = best beam's current word. Mistakes = words the surviving beam marked as substituted/deleted.
+Build a `RecognitionRouter` that exposes one interface (`start`, `stop`, `onPartial`, `onCommitted`) and routes to one of two backends based on a setting:
 
-Effect: pointer follows you smoothly mid-ayah, missed words light up immediately, recovering after a mistake is instant.
+- **Scribe (default, low-latency)** — current pipeline, but pre-warmed on page load and switched to manual commit with a 1.2s rolling timer so partials flush faster.
+- **Whisper (high-accuracy)** — new edge function `whisper-transcribe` that accepts ~3s audio chunks (webm/opus) and forwards to OpenAI `whisper-1` with `language=ar` and a verse-prompt biasing string (the upcoming 1–2 ayahs in plain Arabic). Returns text per chunk.
 
-### Layer B — Lovable AI re-scoring for ambiguous partials
+Client-side, when Whisper mode is on, we record via `MediaRecorder` in 2.5s chunks with 0.5s overlap, ship each chunk to the edge function, append the text to the rolling transcript, and feed the same matcher. A toggle in the header (“Accuracy: Fast / Precise”) flips between them. Default = Precise (Whisper) since the user explicitly asked for it.
 
-When Scribe emits a partial that doesn't cleanly match any beam (score gap < threshold), send a tiny request to Lovable AI Gateway:
+Note on API key: OpenAI is not currently connected. We'll add the `openai` standard connector (or fall back to a manual `OPENAI_API_KEY` secret) before deploying the function. The plan defers that to the connect step at implementation time — no action needed from you yet.
 
-- Model: `google/gemini-2.5-flash-lite` (cheapest, ~50ms).
-- Prompt: "Spoken: `<scribe_partial>`. Expected next words: `<3 words from each top beam>`. Which is closest phonetically in Quranic Arabic? Return JSON `{beam, confidence}`."
-- Use only as a **tiebreaker**, not on every partial. Caps at ~2–3 calls/sec per user.
+## 3. Verse-locked beam matcher (replaces the current single-shot NW align)
 
-This patches Scribe's worst confusions (ث/س, ذ/ز, ق/ك, ح/خ/ه) without us training anything. Free with Lovable AI.
+`src/lib/beam-matcher.ts` — new. Maintains a small set of beams (K=5), each a `{ ayahIdx, wordIdx, score }`. On every new committed/partial token:
 
-### Layer C — Per-word confidence + audible feedback
+- For each beam, try three moves: advance the word pointer (cost = phonetic distance to expected next word), skip the expected word (small penalty, capped consecutive), or ignore the spoken token (insertion penalty).
+- Keep top-K by cumulative score. Display state derives from the best beam: words behind it = correct/weak/missed (frozen), word at pointer = current, words ahead = default/dimmed.
+- Crossing into the next ayah is automatic when the best beam advances past the last word. No more `verseStartOffset` slicing — beams own the position.
 
-- Each correct word stores its alignment score; below 0.7 = "weak" (yellow underline), below 0.45 + still consumed = "wrong" (red).
-- Optional soft "tick" sound on a confidently-correct word so the user feels the app is keeping up. Toggle in settings.
+This fixes both "pointer doesn't follow smoothly" and "verse advance feels wrong" because the matcher never has to reset between ayahs.
 
-### Layer D — Pre-warm + commit tuning (Scribe stability)
+## 4. AI re-scorer (tiebreaker only)
 
-Small wins that compound:
+When the top two beams are within a small score gap (ambiguous), call an edge function `recitation-rescore` once with the last ~2s of transcript and the candidate next-words for each beam. Use `google/gemini-3-flash-preview` via the Lovable AI Gateway with a strict tool schema returning `{ winner: 0 | 1 }`. Rate-limited to ≤2 calls/sec per session and only fires when ambiguous, so cost stays negligible.
 
-- Connect Scribe **on page load** (not on first tap) so the first ayah doesn't lose the first 600ms.
-- Switch commit strategy from `VAD` to `manual` with a 1.5s timer — VAD over-commits on long madd and breaks our pointer.
-- Send a 200ms warm-up of silence after connect so the model's RNN state is initialized before the user starts.
+## 5. Teacher review — make it not clunky
 
-## What we explicitly will NOT do (and why)
+Stays inline (no panels) but lighter:
 
-- **No custom GPU model.** That's the Phase 2 plan from `.lovable/plan.md`. The user wants this all in Lovable; we keep it that way.
-- **No Whisper-via-edge-function fallback.** Latency is too high (3–5s) for live following; would degrade UX even if accuracy is better on paper.
-- **No tajweed grading yet.** Needs phoneme timings Scribe doesn't expose. Revisit only if user explicitly asks.
+- Teacher mode toggle moves into the same header chip.
+- In teacher mode, every word (not just missed) is tappable. Tap toggles between `correct ↔ missed` and persists via the existing `corrections-store`.
+- Long-press shows a 2-button micro-popover: "Save pair globally" vs "Just here". This makes the global-vs-positional distinction visible instead of inferred.
+- Add a small "✓ N corrections" counter chip next to the mode toggle.
 
-## File changes (technical)
-
-- `src/lib/arabic-compare.ts` — add `BeamMatcher` class, keep `verseLockedAlign` as a fallback for one-shot diff views (MistakeSummary).
-- `src/hooks/use-verse-locked-matcher.ts` *(new)* — owns beam state across partials, exposes `{ currentVerseIdx, currentWordIdx, statuses, weakWords }`.
-- `src/hooks/use-scribe-recognition.ts` — pre-warm connect, switch to manual commit + 1.5s timer, expose `connectionState`.
-- `src/lib/ai-rescorer.ts` *(new)* — Lovable AI tiebreaker, debounced + rate-limited.
-- `supabase/functions/ai-rescore/index.ts` *(new)* — proxies to `https://ai.gateway.lovable.dev` with `LOVABLE_API_KEY`, returns `{beam, confidence}`.
-- `src/components/VerseCard.tsx` — render "weak" state (yellow underline) in addition to existing correct/missed/current.
-- `src/pages/Index.tsx` — swap to the new hook; remove the per-partial full-verse alignment loop.
-
-## Sequence
+## 6. Technical layout
 
 ```text
-1. Layer A (beam matcher)        ─► biggest perceived accuracy jump, ship first
-2. Layer D (Scribe pre-warm/commit) ─► ships with A, ~30 min of work
-3. Layer C (weak/strong UI)      ─► ships with A
-4. Layer B (AI re-scorer)        ─► ships after A is verified working
+src/
+  components/
+    MushafPage.tsx          ← new, replaces VerseCard list in Index
+    MushafWord.tsx          ← small inline word renderer (status + tap)
+    MicButton.tsx           ← floating bottom-center mic
+  hooks/
+    use-recognition-router.ts ← new, picks Scribe or Whisper
+    use-scribe-recognition.ts  ← keep, add pre-warm + manual commit
+    use-whisper-recognition.ts ← new, MediaRecorder chunked
+  lib/
+    beam-matcher.ts         ← new, K-beam aligner
+    arabic-compare.ts       ← keep phonemicNormalize + phoneticDistance, used by beam
+    corrections-store.ts    ← unchanged
+  pages/
+    Index.tsx               ← rewired around MushafPage + RecognitionRouter + BeamMatcher
+supabase/functions/
+  whisper-transcribe/index.ts ← new (needs OPENAI_API_KEY)
+  recitation-rescore/index.ts ← new (uses LOVABLE_API_KEY)
+  scribe-token/index.ts       ← unchanged
 ```
 
-## Two quick questions before I build
+## 7. Sequence of work
 
-1. **Sound feedback** on each correct word — yes (subtle tick), or no (visual only)?
-2. **AI re-scorer** uses Lovable AI credits (cheap but not free at scale). OK to enable by default, or gate behind a "Higher accuracy" toggle?
+1. Mushaf UI shell (`MushafPage`, `MushafWord`, `MicButton`, rewire `Index`) — visible win first.
+2. Beam matcher + integrate with existing Scribe pipeline; remove `verseStartOffset` slicing.
+3. Whisper edge function + `use-whisper-recognition` + router toggle.
+4. AI re-scorer edge function + ambiguity gate in beam matcher.
+5. Teacher review polish (long-press popover, counter chip).
+
+I'll surface the OpenAI connector step (or a secret prompt as fallback) right before step 3 — nothing needed from you now.
