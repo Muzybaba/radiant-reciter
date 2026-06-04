@@ -29,6 +29,7 @@ const MushafPage = ({
   verseStatuses,
   isReciting,
   currentVerseIdx,
+  currentWordIdx,
   teacherMode,
   onWordTap,
 }: MushafPageProps) => {
@@ -55,25 +56,21 @@ const MushafPage = ({
         {surah.verses.map((verse, vi) => {
           const words = splitWords(verse.text);
           const statuses = verseStatuses[vi] || [];
-          const isActive = isReciting && vi === currentVerseIdx;
           return (
-            <span
-              key={verse.number}
-              className={`contents`}
-            >
+            <span key={verse.number} className="contents">
               {words.map((w, wi) => {
                 const status = statuses[wi] || "default";
-                const dim =
-                  isReciting &&
-                  status === "default" &&
-                  (vi > currentVerseIdx ||
-                    (vi === currentVerseIdx && wi > 0 && !statuses.slice(0, wi).some((s) => s === "current")));
+                // Dim words strictly after the current pointer
+                const afterCursor =
+                  vi > currentVerseIdx ||
+                  (vi === currentVerseIdx && wi > currentWordIdx);
+                const dim = isReciting && status === "default" && afterCursor;
                 return (
                   <MushafWord
                     key={`${vi}-${wi}`}
                     word={w}
                     status={status}
-                    dim={!!dim && !isActive}
+                    dim={dim}
                     clickable={teacherMode}
                     onClick={teacherMode ? () => onWordTap?.(vi, wi) : undefined}
                   />

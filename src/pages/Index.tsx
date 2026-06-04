@@ -218,6 +218,7 @@ const Index = () => {
             verseStatuses={displayStatuses}
             isReciting={isReciting}
             currentVerseIdx={alignment.currentVerseIdx}
+            currentWordIdx={alignment.currentWordIdx}
             teacherMode={teacherMode}
             onWordTap={handleWordTap}
           />
