@@ -8,6 +8,7 @@ interface MushafPageProps {
   verseStatuses: WordStatus[][];
   isReciting: boolean;
   currentVerseIdx: number;
+  currentWordIdx: number;
   teacherMode: boolean;
   onWordTap?: (verseIdx: number, wordIdx: number) => void;
 }
