@@ -9,7 +9,7 @@ interface MushafWordProps {
 }
 
 const colorMap: Record<WordStatus, string> = {
-  default: "text-ink",
+  default: "text-foreground",
   correct: "text-[hsl(var(--success-text))]",
   weak: "text-[hsl(var(--weak-text))] underline decoration-dotted underline-offset-[6px] decoration-[hsl(var(--weak-text)/0.5)]",
   missed: "text-[hsl(var(--mistake-text))]",

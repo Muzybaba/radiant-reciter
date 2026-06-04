@@ -39,7 +39,7 @@ const MushafPage = ({
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}
       dir="rtl"
-      className="font-arabic text-[2.1rem] sm:text-[2.35rem] leading-[2.5] text-right text-ink"
+      className="font-arabic text-[2.1rem] sm:text-[2.35rem] leading-[2.5] text-right text-foreground"
       style={{ textAlignLast: "right", wordSpacing: "0.15em" }}
     >
       {/* Surah ornamental header */}
