@@ -221,19 +221,20 @@ export function alignSurah(
     }
   }
 
-  // Place the "current" pointer
+  // Place the "current" pointer — sit on the LAST word the reciter said
+  // (so the pulse stops where they paused), not on the next expected word.
   let cursorFlat: number;
   if (pendingCurrentFlatIdx >= 0) {
     cursorFlat = pendingCurrentFlatIdx;
+  } else if (lastMatchedFlatIdx >= 0) {
+    cursorFlat = lastMatchedFlatIdx;
   } else {
-    cursorFlat = Math.min(lastMatchedFlatIdx + 1, n - 1);
+    cursorFlat = 0;
   }
   const cursorVi = ownerVerse[cursorFlat];
   const cursorWi = ownerWord[cursorFlat];
-  // Only show current if not already marked correct/weak/missed (i.e. it's the next expected)
-  if (verseStatuses[cursorVi][cursorWi] === "default") {
-    verseStatuses[cursorVi][cursorWi] = "current";
-  }
+  // Overlay the pulse on top of whatever status that word has.
+  verseStatuses[cursorVi][cursorWi] = "current";
 
   return {
     verseStatuses,
