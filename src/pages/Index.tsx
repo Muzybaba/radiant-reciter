@@ -174,6 +174,7 @@ const Index = () => {
   // Reset transcript on surah switch
   useEffect(() => {
     setTranscript("");
+    setSettledTranscript("");
     if (isListening) {
       stop();
       setIsReciting(false);
