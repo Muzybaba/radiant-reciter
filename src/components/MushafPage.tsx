@@ -78,14 +78,14 @@ const MushafPage = ({
               })}
               {/* Ayah end marker — digit centered inside the ornament */}
               <span
-                className="relative inline-block mx-1 select-none text-foreground/60 align-middle"
-                style={{ width: "1.6em", height: "1.6em", lineHeight: "1.6em" }}
+                className="relative inline-block mx-0.5 select-none text-foreground/60 align-middle"
+                style={{ width: "1em", height: "1em", lineHeight: "1em" }}
                 aria-hidden
               >
-                <span className="absolute inset-0 flex items-center justify-center text-[1.6em] leading-none">
+                <span className="absolute inset-0 flex items-center justify-center text-[1em] leading-none">
                   ۝
                 </span>
-                <span className="absolute inset-0 flex items-center justify-center text-[0.55em] tabular-nums text-foreground/80">
+                <span className="absolute inset-0 flex items-center justify-center text-[0.38em] tabular-nums text-foreground/80">
                   {toArabicDigits(verse.number)}
                 </span>
               </span>
