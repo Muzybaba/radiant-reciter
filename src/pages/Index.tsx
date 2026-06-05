@@ -135,6 +135,7 @@ const Index = () => {
       setIsReciting(false);
     } else {
       setTranscript("");
+      setSettledTranscript("");
       lastTranscriptTime.current = Date.now();
       stallCooldown.current = false;
       reset();
