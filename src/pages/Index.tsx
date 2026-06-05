@@ -147,6 +147,7 @@ const Index = () => {
   const handleReset = () => {
     setMistakes((prev) => ({ ...prev, [activeSurahId]: [] }));
     setTranscript("");
+    setSettledTranscript("");
   };
 
   // Teacher tap: toggle word state. If currently correct/weak → mark missed (clear correction).
