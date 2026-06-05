@@ -22,7 +22,16 @@ const Index = () => {
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
   const [isReciting, setIsReciting] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [settledTranscript, setSettledTranscript] = useState("");
   const [teacherMode, setTeacherMode] = useState(false);
+
+  // Debounce: only "commit" the transcript to the matcher after 500ms of
+  // no new speech — gives the reciter a beat to finish an ayah before
+  // words light up green/red. Feels like a teacher nodding after you pause.
+  useEffect(() => {
+    const id = setTimeout(() => setSettledTranscript(transcript), 500);
+    return () => clearTimeout(id);
+  }, [transcript]);
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
   const verseAlignedSpoken = useRef<(string | null)[][]>([]);
@@ -39,14 +48,14 @@ const Index = () => {
 
   // Compute alignment on every transcript or corrections change.
   const alignment: SurahAlignment = useMemo(() => {
-    return alignSurah(transcript, activeSurah, {
+    return alignSurah(settledTranscript, activeSurah, {
       acceptedPairs: getAcceptedPairs(),
       acceptedSlots: getAcceptedSlots(),
       surahId: activeSurahId,
       emitWeak: true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transcript, activeSurah, activeSurahId, correctionsTick]);
+  }, [settledTranscript, activeSurah, activeSurahId, correctionsTick]);
 
   // Keep aligned-spoken ref fresh for teacher taps.
   useEffect(() => {
@@ -126,6 +135,7 @@ const Index = () => {
       setIsReciting(false);
     } else {
       setTranscript("");
+      setSettledTranscript("");
       lastTranscriptTime.current = Date.now();
       stallCooldown.current = false;
       reset();
@@ -137,6 +147,7 @@ const Index = () => {
   const handleReset = () => {
     setMistakes((prev) => ({ ...prev, [activeSurahId]: [] }));
     setTranscript("");
+    setSettledTranscript("");
   };
 
   // Teacher tap: toggle word state. If currently correct/weak → mark missed (clear correction).
@@ -163,6 +174,7 @@ const Index = () => {
   // Reset transcript on surah switch
   useEffect(() => {
     setTranscript("");
+    setSettledTranscript("");
     if (isListening) {
       stop();
       setIsReciting(false);
