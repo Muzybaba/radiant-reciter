@@ -48,14 +48,14 @@ const Index = () => {
 
   // Compute alignment on every transcript or corrections change.
   const alignment: SurahAlignment = useMemo(() => {
-    return alignSurah(transcript, activeSurah, {
+    return alignSurah(settledTranscript, activeSurah, {
       acceptedPairs: getAcceptedPairs(),
       acceptedSlots: getAcceptedSlots(),
       surahId: activeSurahId,
       emitWeak: true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transcript, activeSurah, activeSurahId, correctionsTick]);
+  }, [settledTranscript, activeSurah, activeSurahId, correctionsTick]);
 
   // Keep aligned-spoken ref fresh for teacher taps.
   useEffect(() => {
