@@ -187,8 +187,11 @@ export function alignSurah(
       } else if (sub <= WEAK_THRESHOLD) {
         verseStatuses[vi][wi] = emitWeak ? "weak" : "correct";
         if (j - 1 > lastMatchedFlatIdx) lastMatchedFlatIdx = j - 1;
-      } else if (i === m && sub <= PENDING_THRESHOLD) {
-        pendingCurrentFlatIdx = j - 1;
+      } else if (sub <= PENDING_THRESHOLD) {
+        // Borderline match — still credit it (weak) so the final word of a
+        // surah doesn't get stuck uncolored after a pause.
+        verseStatuses[vi][wi] = emitWeak ? "weak" : "correct";
+        if (j - 1 > lastMatchedFlatIdx) lastMatchedFlatIdx = j - 1;
       } else {
         verseStatuses[vi][wi] = "missed";
         if (j - 1 > lastMatchedFlatIdx) lastMatchedFlatIdx = j - 1;
