@@ -22,7 +22,16 @@ const Index = () => {
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
   const [isReciting, setIsReciting] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [settledTranscript, setSettledTranscript] = useState("");
   const [teacherMode, setTeacherMode] = useState(false);
+
+  // Debounce: only "commit" the transcript to the matcher after 500ms of
+  // no new speech — gives the reciter a beat to finish an ayah before
+  // words light up green/red. Feels like a teacher nodding after you pause.
+  useEffect(() => {
+    const id = setTimeout(() => setSettledTranscript(transcript), 500);
+    return () => clearTimeout(id);
+  }, [transcript]);
   const lastTranscriptTime = useRef<number>(0);
   const stallCooldown = useRef<boolean>(false);
   const verseAlignedSpoken = useRef<(string | null)[][]>([]);
