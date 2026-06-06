@@ -194,67 +194,102 @@ const Index = () => {
   }, [alignment, isReciting]);
 
   return (
-    <div className="min-h-screen pb-32">
-      <div className="max-w-2xl mx-auto py-[6vh] px-6">
-        <header className="text-center space-y-5 mb-10">
-          <span className="label-ui">Muraqaba</span>
+    <div className="min-h-screen flex w-full bg-vignette">
+      <SurahSidebar
+        surahs={surahs}
+        activeSurahId={activeSurahId}
+        onSelect={setActiveSurahId}
+        correctionsCount={corrCount}
+      />
+
+      <main className="flex-1 relative flex flex-col min-h-screen">
+        {/* Header */}
+        <header className="flex items-center justify-between px-6 md:px-12 py-7 border-b border-primary/10">
+          <div className="flex flex-col">
+            <h1 className="font-display text-2xl font-semibold text-primary tracking-[0.25em] uppercase">
+              Muraqaba
+            </h1>
+            <span className="text-[10px] text-muted-foreground tracking-[0.3em] -mt-0.5 uppercase">
+              Spiritual Vigilance
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 md:gap-6">
+            <button
+              onClick={() => setTeacherMode((v) => !v)}
+              className={`flex items-center gap-3 px-4 py-2 rounded-full border transition-all ${
+                teacherMode
+                  ? "bg-primary/10 border-primary/40 text-accent"
+                  : "bg-foreground/5 border-foreground/10 text-muted-foreground hover:border-primary/30"
+              }`}
+              title="Tap any word to teach the matcher"
+            >
+              <GraduationCap size={13} />
+              <span className="text-[10px] uppercase tracking-[0.25em]">
+                Teacher {teacherMode ? "On" : "Off"}
+              </span>
+              <span
+                className={`w-8 h-4 rounded-full relative transition-colors ${
+                  teacherMode ? "bg-primary/40" : "bg-foreground/10"
+                }`}
+              >
+                <span
+                  className={`absolute top-1 w-2 h-2 rounded-full transition-all ${
+                    teacherMode ? "left-5 bg-accent" : "left-1 bg-foreground/30"
+                  }`}
+                />
+              </span>
+            </button>
+            <button
+              className="hidden sm:flex w-10 h-10 rounded-full border border-primary/30 items-center justify-center text-primary hover:bg-primary/10 transition-colors"
+              aria-label="Settings"
+            >
+              <Settings size={15} />
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile surah selector */}
+        <div className="md:hidden px-6 py-4 border-b border-primary/10">
           <SurahSelector
             surahs={surahs}
             activeSurahId={activeSurahId}
             onSelect={setActiveSurahId}
           />
-          <div className="flex justify-center items-center gap-2">
-            <button
-              onClick={() => setTeacherMode((v) => !v)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-medium tracking-wider uppercase transition-all duration-200 border ${
-                teacherMode
-                  ? "bg-foreground text-background border-foreground"
-                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
-              }`}
-              title="Tap any word to teach the matcher"
-            >
-              <GraduationCap size={12} />
-              Teacher {teacherMode ? "On" : "Off"}
-            </button>
-            {corrCount > 0 && (
-              <span className="text-[10px] text-muted-foreground tracking-wider uppercase">
-                ✓ {corrCount} saved
-              </span>
+        </div>
+
+        {/* Mushaf canvas */}
+        <div className="flex-1 overflow-y-auto pb-56">
+          <div className="max-w-2xl mx-auto px-8 md:px-12 py-16">
+            <AnimatePresence mode="wait">
+              <MushafPage
+                key={activeSurahId}
+                surah={activeSurah}
+                verseStatuses={displayStatuses}
+                isReciting={isReciting}
+                currentVerseIdx={alignment.currentVerseIdx}
+                currentWordIdx={alignment.currentWordIdx}
+                teacherMode={teacherMode}
+                onWordTap={handleWordTap}
+              />
+            </AnimatePresence>
+
+            {teacherMode && (
+              <p className="text-center label-ui mt-16 opacity-60">
+                Tap any word to mark it correct — the matcher will learn
+              </p>
             )}
           </div>
-        </header>
+        </div>
 
-        <AnimatePresence mode="wait">
-          <MushafPage
-            key={activeSurahId}
-            surah={activeSurah}
-            verseStatuses={displayStatuses}
-            isReciting={isReciting}
-            currentVerseIdx={alignment.currentVerseIdx}
-            currentWordIdx={alignment.currentWordIdx}
-            teacherMode={teacherMode}
-            onWordTap={handleWordTap}
-          />
-        </AnimatePresence>
+        {isSupported && <MicButton isListening={isListening} onToggle={handleReciteToggle} />}
 
-        <p className="text-center label-ui mt-12 opacity-50">
-          {teacherMode
-            ? "Tap any word to mark it correct — the matcher will learn"
-            : isReciting
-              ? "Listening… recite naturally"
-              : isSupported
-                ? "Press the mic to begin"
-                : "Microphone not supported in this browser"}
-        </p>
-      </div>
-
-      {isSupported && <MicButton isListening={isListening} onToggle={handleReciteToggle} />}
-
-      <MistakeSummary
-        count={currentMistakes.length}
-        surahName={activeSurah.name}
-        onReset={handleReset}
-      />
+        <MistakeSummary
+          count={currentMistakes.length}
+          surahName={activeSurah.name}
+          onReset={handleReset}
+        />
+      </main>
     </div>
   );
 };
