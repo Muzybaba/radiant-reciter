@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect, useSyncExternalStore, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Settings } from "lucide-react";
 import { surahs } from "@/data/surahs";
+import SurahSidebar from "@/components/SurahSidebar";
 import SurahSelector from "@/components/SurahSelector";
 import MushafPage from "@/components/MushafPage";
 import MicButton from "@/components/MicButton";
