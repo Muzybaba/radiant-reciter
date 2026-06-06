@@ -16,16 +16,16 @@ const SurahSelector = ({ surahs, activeSurahId, onSelect }: SurahSelectorProps) 
           <button
             key={s.id}
             onClick={() => onSelect(s.id)}
-            className={`relative px-4 py-2 rounded-sm transition-colors duration-200 label-ui ${
+            className={`relative px-4 py-2 rounded-full transition-colors duration-200 label-ui ${
               isActive
-                ? "text-primary-foreground"
+                ? "text-accent-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {isActive && (
               <motion.div
                 layoutId="surah-pill"
-                className="absolute inset-0 bg-primary rounded-sm"
+                className="absolute inset-0 bg-primary rounded-full"
                 transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
               />
             )}
