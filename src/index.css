@@ -4,75 +4,92 @@
 
 @layer base {
   :root {
-    --background: 40 20% 97%;
-    --foreground: 160 10% 15%;
+    /* Noir & Gold — sacred manuscript on lacquered black */
+    --background: 0 0% 5%;            /* #0d0d0d */
+    --foreground: 0 0% 96%;
 
-    --card: 40 15% 95%;
-    --card-foreground: 160 10% 15%;
+    --card: 0 0% 4%;                  /* #0a0a0a sidebar/card */
+    --card-foreground: 0 0% 96%;
 
-    --popover: 40 20% 97%;
-    --popover-foreground: 160 10% 15%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 35 30% 45%;
-    --primary-foreground: 40 20% 97%;
+    --primary: 43 55% 54%;            /* #c9a84c gold */
+    --primary-foreground: 0 0% 5%;
 
-    --secondary: 35 10% 90%;
-    --secondary-foreground: 160 10% 15%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 92%;
 
-    --muted: 35 10% 92%;
-    --muted-foreground: 160 5% 45%;
+    --muted: 0 0% 9%;
+    --muted-foreground: 0 0% 50%;
 
-    --accent: 35 20% 88%;
-    --accent-foreground: 160 10% 15%;
+    --accent: 42 75% 75%;             /* #f0d78c warm gold (active text) */
+    --accent-foreground: 0 0% 5%;
 
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 40 20% 97%;
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 96%;
 
-    --mistake-bg: 0 60% 96%;
-    --mistake-border: 0 40% 82%;
-    --mistake-text: 0 50% 25%;
+    --mistake-bg: 0 40% 12%;
+    --mistake-border: 0 40% 30%;
+    --mistake-text: 0 65% 65%;
 
-    --success-bg: 140 50% 95%;
-    --success-border: 140 40% 75%;
-    --success-text: 140 40% 25%;
+    --success-bg: 42 30% 12%;
+    --success-border: 43 55% 30%;
+    --success-text: 42 75% 75%;       /* matched word = warm gold */
 
-    --weak-text: 38 80% 38%;
+    --weak-text: 35 60% 55%;
 
+    --border: 43 55% 54%;             /* use with alpha modifier */
+    --input: 0 0% 14%;
+    --ring: 43 55% 54%;
 
-    --border: 35 10% 88%;
-    --input: 35 10% 88%;
-    --ring: 35 30% 45%;
+    --radius: 0.75rem;
 
-    --radius: 0.25rem;
+    --shadow-subtle: 0 1px 2px rgba(0,0,0,0.4), 0 4px 24px rgba(0,0,0,0.35);
+    --shadow-gold: 0 0 30px hsl(43 55% 54% / 0.15);
 
-    --shadow-subtle: 0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03);
-
-    --sidebar-background: 40 15% 95%;
-    --sidebar-foreground: 160 10% 15%;
-    --sidebar-primary: 35 30% 45%;
-    --sidebar-primary-foreground: 40 20% 97%;
-    --sidebar-accent: 35 10% 90%;
-    --sidebar-accent-foreground: 160 10% 15%;
-    --sidebar-border: 35 10% 88%;
-    --sidebar-ring: 35 30% 45%;
+    --sidebar-background: 0 0% 4%;
+    --sidebar-foreground: 0 0% 92%;
+    --sidebar-primary: 43 55% 54%;
+    --sidebar-primary-foreground: 0 0% 5%;
+    --sidebar-accent: 0 0% 8%;
+    --sidebar-accent-foreground: 42 75% 75%;
+    --sidebar-border: 43 55% 54%;
+    --sidebar-ring: 43 55% 54%;
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border) / 0.15);
   }
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Geist', system-ui, sans-serif;
+    font-family: 'Karla', system-ui, sans-serif;
   }
 
   .font-arabic {
     font-family: 'Amiri', serif;
   }
 
+  .font-display {
+    font-family: 'Cormorant Garamond', serif;
+  }
+
   .label-ui {
-    @apply text-[10px] uppercase tracking-[0.15em] font-medium text-muted-foreground;
+    @apply text-[10px] uppercase tracking-[0.3em] font-medium text-muted-foreground;
+  }
+}
+
+@layer utilities {
+  .text-glow-gold {
+    text-shadow: 0 0 18px hsl(42 75% 75% / 0.35);
+  }
+  .bg-vignette {
+    background:
+      radial-gradient(ellipse at top, hsl(43 55% 54% / 0.05), transparent 60%),
+      radial-gradient(ellipse at bottom, hsl(0 0% 0% / 0.4), transparent 70%),
+      hsl(var(--background));
   }
 }
