@@ -7,6 +7,7 @@ import SurahSelector from "@/components/SurahSelector";
 import MushafPage from "@/components/MushafPage";
 import MicButton from "@/components/MicButton";
 import MistakeSummary from "@/components/MistakeSummary";
+import HomeView from "@/components/HomeView";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { alignSurah, type SurahAlignment } from "@/lib/surah-matcher";
 import type { WordStatus } from "@/lib/arabic-compare";
@@ -20,6 +21,7 @@ import {
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
+  const [view, setView] = useState<"home" | "mushaf">("home");
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
   const [isReciting, setIsReciting] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -198,7 +200,9 @@ const Index = () => {
       <SurahSidebar
         surahs={surahs}
         activeSurahId={activeSurahId}
-        onSelect={setActiveSurahId}
+        activeView={view}
+        onSelect={(id) => { setActiveSurahId(id); setView("mushaf"); }}
+        onSelectHome={() => setView("home")}
         correctionsCount={corrCount}
       />
 
@@ -249,46 +253,60 @@ const Index = () => {
           </div>
         </header>
 
-        {/* Mobile surah selector */}
-        <div className="md:hidden px-6 py-4 border-b border-primary/10">
-          <SurahSelector
-            surahs={surahs}
-            activeSurahId={activeSurahId}
-            onSelect={setActiveSurahId}
-          />
-        </div>
-
-        {/* Mushaf canvas */}
-        <div className="flex-1 overflow-y-auto pb-56">
-          <div className="max-w-2xl mx-auto px-8 md:px-12 py-16">
-            <AnimatePresence mode="wait">
-              <MushafPage
-                key={activeSurahId}
-                surah={activeSurah}
-                verseStatuses={displayStatuses}
-                isReciting={isReciting}
-                currentVerseIdx={alignment.currentVerseIdx}
-                currentWordIdx={alignment.currentWordIdx}
-                teacherMode={teacherMode}
-                onWordTap={handleWordTap}
-              />
-            </AnimatePresence>
-
-            {teacherMode && (
-              <p className="text-center label-ui mt-16 opacity-60">
-                Tap any word to mark it correct — the matcher will learn
-              </p>
-            )}
+        {/* Mobile surah selector (only on Mushaf view) */}
+        {view === "mushaf" && (
+          <div className="md:hidden px-6 py-4 border-b border-primary/10">
+            <SurahSelector
+              surahs={surahs}
+              activeSurahId={activeSurahId}
+              onSelect={setActiveSurahId}
+            />
           </div>
+        )}
+
+        {/* Main canvas */}
+        <div className="flex-1 overflow-y-auto pb-56">
+          <AnimatePresence mode="wait">
+            {view === "home" ? (
+              <HomeView
+                key="home"
+                surahs={surahs}
+                onStartReciting={() => setView("mushaf")}
+                onSelectSurah={(id) => { setActiveSurahId(id); setView("mushaf"); }}
+              />
+            ) : (
+              <div key="mushaf" className="max-w-2xl mx-auto px-8 md:px-12 py-16">
+                <MushafPage
+                  key={activeSurahId}
+                  surah={activeSurah}
+                  verseStatuses={displayStatuses}
+                  isReciting={isReciting}
+                  currentVerseIdx={alignment.currentVerseIdx}
+                  currentWordIdx={alignment.currentWordIdx}
+                  teacherMode={teacherMode}
+                  onWordTap={handleWordTap}
+                />
+                {teacherMode && (
+                  <p className="text-center label-ui mt-16 opacity-60">
+                    Tap any word to mark it correct — the matcher will learn
+                  </p>
+                )}
+              </div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {isSupported && <MicButton isListening={isListening} onToggle={handleReciteToggle} />}
+        {isSupported && view === "mushaf" && (
+          <MicButton isListening={isListening} onToggle={handleReciteToggle} />
+        )}
 
-        <MistakeSummary
-          count={currentMistakes.length}
-          surahName={activeSurah.name}
-          onReset={handleReset}
-        />
+        {view === "mushaf" && (
+          <MistakeSummary
+            count={currentMistakes.length}
+            surahName={activeSurah.name}
+            onReset={handleReset}
+          />
+        )}
       </main>
     </div>
   );
