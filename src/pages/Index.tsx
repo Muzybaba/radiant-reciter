@@ -7,6 +7,7 @@ import SurahSelector from "@/components/SurahSelector";
 import MushafPage from "@/components/MushafPage";
 import MicButton from "@/components/MicButton";
 import MistakeSummary from "@/components/MistakeSummary";
+import HomeView from "@/components/HomeView";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { alignSurah, type SurahAlignment } from "@/lib/surah-matcher";
 import type { WordStatus } from "@/lib/arabic-compare";
