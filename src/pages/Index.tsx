@@ -21,6 +21,7 @@ import {
 
 const Index = () => {
   const [activeSurahId, setActiveSurahId] = useState(112);
+  const [view, setView] = useState<"home" | "mushaf">("home");
   const [mistakes, setMistakes] = useState<Record<number, number[]>>({});
   const [isReciting, setIsReciting] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -199,7 +200,9 @@ const Index = () => {
       <SurahSidebar
         surahs={surahs}
         activeSurahId={activeSurahId}
-        onSelect={setActiveSurahId}
+        activeView={view}
+        onSelect={(id) => { setActiveSurahId(id); setView("mushaf"); }}
+        onSelectHome={() => setView("home")}
         correctionsCount={corrCount}
       />
 
