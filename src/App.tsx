@@ -4,7 +4,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
+import Hadith from "./pages/Hadith.tsx";
+import Hifz from "./pages/Hifz.tsx";
+import Salah from "./pages/Salah.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import BottomTabs from "./components/BottomTabs";
 
 const queryClient = new QueryClient();
 
@@ -16,9 +20,12 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/hadith" element={<Hadith />} />
+          <Route path="/hifz" element={<Hifz />} />
+          <Route path="/salah" element={<Salah />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <BottomTabs />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
