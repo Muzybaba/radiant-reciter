@@ -88,8 +88,8 @@
   }
   .bg-vignette {
     background:
-      radial-gradient(ellipse at top, hsl(43 55% 54% / 0.05), transparent 60%),
-      radial-gradient(ellipse at bottom, hsl(0 0% 0% / 0.4), transparent 70%),
+      radial-gradient(ellipse at top, hsl(41 65% 45% / 0.06), transparent 60%),
+      radial-gradient(ellipse at bottom, hsl(40 30% 85% / 0.4), transparent 70%),
       hsl(var(--background));
   }
 }
