@@ -2,8 +2,9 @@ import { NavLink } from "react-router-dom";
 import { BookOpen, ScrollText, Brain, Moon, Home } from "lucide-react";
 
 const tabs = [
-  { to: "/", label: "Quran", icon: BookOpen, end: true },
+  { to: "/quran", label: "Quran", icon: BookOpen },
   { to: "/hadith", label: "Hadith", icon: ScrollText },
+  { to: "/", label: "Home", icon: Home, end: true },
   { to: "/hifz", label: "Hifz", icon: Brain },
   { to: "/salah", label: "Salah", icon: Moon },
 ];
@@ -14,7 +15,7 @@ const BottomTabs = () => {
       className="fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur border-t border-primary/20"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="max-w-2xl mx-auto grid grid-cols-4">
+      <ul className="max-w-2xl mx-auto grid grid-cols-5">
         {tabs.map(({ to, label, icon: Icon, end }) => (
           <li key={to}>
             <NavLink
