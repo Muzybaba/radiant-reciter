@@ -4,58 +4,58 @@
 
 @layer base {
   :root {
-    /* Noir & Gold — sacred manuscript on lacquered black */
-    --background: 0 0% 5%;            /* #0d0d0d */
-    --foreground: 0 0% 96%;
+    /* Ivory & Gold — illuminated manuscript on warm paper */
+    --background: 40 33% 97%;
+    --foreground: 30 15% 12%;
 
-    --card: 0 0% 4%;                  /* #0a0a0a sidebar/card */
-    --card-foreground: 0 0% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 30 15% 12%;
 
-    --popover: 0 0% 5%;
-    --popover-foreground: 0 0% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 15% 12%;
 
-    --primary: 43 55% 54%;            /* #c9a84c gold */
-    --primary-foreground: 0 0% 5%;
+    --primary: 41 65% 45%;
+    --primary-foreground: 40 33% 97%;
 
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 0 0% 92%;
+    --secondary: 40 25% 92%;
+    --secondary-foreground: 30 15% 15%;
 
-    --muted: 0 0% 9%;
-    --muted-foreground: 0 0% 50%;
+    --muted: 40 20% 94%;
+    --muted-foreground: 30 10% 40%;
 
-    --accent: 42 75% 75%;             /* #f0d78c warm gold (active text) */
-    --accent-foreground: 0 0% 5%;
+    --accent: 41 75% 50%;
+    --accent-foreground: 30 15% 12%;
 
-    --destructive: 0 65% 55%;
-    --destructive-foreground: 0 0% 96%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --mistake-bg: 0 40% 12%;
-    --mistake-border: 0 40% 30%;
-    --mistake-text: 0 65% 65%;
+    --mistake-bg: 0 60% 95%;
+    --mistake-border: 0 50% 70%;
+    --mistake-text: 0 65% 45%;
 
-    --success-bg: 42 30% 12%;
-    --success-border: 43 55% 30%;
-    --success-text: 42 75% 75%;       /* matched word = warm gold */
+    --success-bg: 41 60% 92%;
+    --success-border: 41 65% 60%;
+    --success-text: 41 75% 35%;
 
-    --weak-text: 35 60% 55%;
+    --weak-text: 35 55% 45%;
 
-    --border: 43 55% 54%;             /* use with alpha modifier */
-    --input: 0 0% 14%;
-    --ring: 43 55% 54%;
+    --border: 41 65% 45%;
+    --input: 40 20% 88%;
+    --ring: 41 65% 45%;
 
     --radius: 0.75rem;
 
-    --shadow-subtle: 0 1px 2px rgba(0,0,0,0.4), 0 4px 24px rgba(0,0,0,0.35);
-    --shadow-gold: 0 0 30px hsl(43 55% 54% / 0.15);
+    --shadow-subtle: 0 1px 2px rgba(60,40,10,0.06), 0 4px 24px rgba(60,40,10,0.08);
+    --shadow-gold: 0 0 30px hsl(41 65% 45% / 0.2);
 
-    --sidebar-background: 0 0% 4%;
-    --sidebar-foreground: 0 0% 92%;
-    --sidebar-primary: 43 55% 54%;
-    --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent: 0 0% 8%;
-    --sidebar-accent-foreground: 42 75% 75%;
-    --sidebar-border: 43 55% 54%;
-    --sidebar-ring: 43 55% 54%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 30 15% 15%;
+    --sidebar-primary: 41 65% 45%;
+    --sidebar-primary-foreground: 40 33% 97%;
+    --sidebar-accent: 40 25% 94%;
+    --sidebar-accent-foreground: 41 75% 35%;
+    --sidebar-border: 41 65% 45%;
+    --sidebar-ring: 41 65% 45%;
   }
 }
 
