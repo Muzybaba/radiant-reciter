@@ -12,7 +12,7 @@ const tabs = [
 const BottomTabs = () => {
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur border-t border-primary/20"
+      className="fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur-md border-t border-border/70 shadow-nav"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="max-w-2xl mx-auto grid grid-cols-5">
@@ -23,8 +23,8 @@ const BottomTabs = () => {
               end={end}
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
-                  isActive
-                    ? "text-accent"
+                   isActive
+                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground/80"
                 }`
               }
@@ -32,7 +32,7 @@ const BottomTabs = () => {
               {({ isActive }) => (
                 <>
                   <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
-                  <span className="text-[10px] uppercase tracking-[0.2em]">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">
                     {label}
                   </span>
                   {isActive && (
