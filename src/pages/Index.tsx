@@ -1,13 +1,13 @@
 import { useState, useCallback, useRef, useEffect, useSyncExternalStore, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
-import { GraduationCap, Settings } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import SurahSidebar from "@/components/SurahSidebar";
 import SurahSelector from "@/components/SurahSelector";
 import MushafPage from "@/components/MushafPage";
-import MicButton from "@/components/MicButton";
-import MistakeSummary from "@/components/MistakeSummary";
 import HomeView from "@/components/HomeView";
+import QuranAudioPlayer from "@/components/QuranAudioPlayer";
+import AppearanceMenu from "@/components/AppearanceMenu";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { alignSurah, type SurahAlignment } from "@/lib/surah-matcher";
 import type { WordStatus } from "@/lib/arabic-compare";
@@ -26,7 +26,7 @@ const Index = () => {
   const [isReciting, setIsReciting] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [settledTranscript, setSettledTranscript] = useState("");
-  const [teacherMode, setTeacherMode] = useState(false);
+  const teacherMode = false;
 
   // Debounce: only "commit" the transcript to the matcher after 500ms of
   // no new speech — gives the reciter a beat to finish an ayah before
@@ -218,39 +218,7 @@ const Index = () => {
             </span>
           </div>
 
-          <div className="flex items-center gap-3 md:gap-6">
-            <button
-              onClick={() => setTeacherMode((v) => !v)}
-              className={`flex items-center gap-3 px-4 py-2 rounded-full border transition-all ${
-                teacherMode
-                  ? "bg-primary/10 border-primary/40 text-accent"
-                  : "bg-foreground/5 border-foreground/10 text-muted-foreground hover:border-primary/30"
-              }`}
-              title="Tap any word to teach the matcher"
-            >
-              <GraduationCap size={13} />
-              <span className="text-[10px] uppercase tracking-[0.25em]">
-                Teacher {teacherMode ? "On" : "Off"}
-              </span>
-              <span
-                className={`w-8 h-4 rounded-full relative transition-colors ${
-                  teacherMode ? "bg-primary/40" : "bg-foreground/10"
-                }`}
-              >
-                <span
-                  className={`absolute top-1 w-2 h-2 rounded-full transition-all ${
-                    teacherMode ? "left-5 bg-accent" : "left-1 bg-foreground/30"
-                  }`}
-                />
-              </span>
-            </button>
-            <button
-              className="hidden sm:flex w-10 h-10 rounded-full border border-primary/30 items-center justify-center text-primary hover:bg-primary/10 transition-colors"
-              aria-label="Settings"
-            >
-              <Settings size={15} />
-            </button>
-          </div>
+          <div className="flex items-center gap-3"><span className="hidden sm:flex items-center gap-2 text-xs font-semibold text-muted-foreground"><BookOpen size={15} /> Read & listen</span><AppearanceMenu /></div>
         </header>
 
         {/* Mobile surah selector (only on Mushaf view) */}
@@ -276,6 +244,7 @@ const Index = () => {
               />
             ) : (
               <div key="mushaf" className="max-w-2xl mx-auto px-8 md:px-12 py-16">
+                <QuranAudioPlayer surah={activeSurah} />
                 <MushafPage
                   key={activeSurahId}
                   surah={activeSurah}
@@ -286,27 +255,11 @@ const Index = () => {
                   teacherMode={teacherMode}
                   onWordTap={handleWordTap}
                 />
-                {teacherMode && (
-                  <p className="text-center label-ui mt-16 opacity-60">
-                    Tap any word to mark it correct — the matcher will learn
-                  </p>
-                )}
               </div>
             )}
           </AnimatePresence>
         </div>
 
-        {isSupported && view === "mushaf" && (
-          <MicButton isListening={isListening} onToggle={handleReciteToggle} />
-        )}
-
-        {view === "mushaf" && (
-          <MistakeSummary
-            count={currentMistakes.length}
-            surahName={activeSurah.name}
-            onReset={handleReset}
-          />
-        )}
       </main>
     </div>
   );

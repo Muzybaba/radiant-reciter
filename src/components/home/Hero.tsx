@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowDown, Mic } from "lucide-react";
+import { ArrowDown, BookOpen } from "lucide-react";
 
 interface HeroProps {
   onStartReciting: () => void;
@@ -44,8 +44,7 @@ const Hero = ({ onStartReciting, onChooseSurah }: HeroProps) => {
         transition={{ duration: 0.8, delay: 0.3 }}
         className="mt-8 text-muted-foreground max-w-xl mx-auto text-sm sm:text-base leading-relaxed font-light"
       >
-        Muraqaba listens as you recite — gently marking what slips, so the next
-        return is closer than the last.
+        A clear space for reading the Quran and listening to a trusted reciter.
       </motion.p>
 
       <motion.div
@@ -58,8 +57,8 @@ const Hero = ({ onStartReciting, onChooseSurah }: HeroProps) => {
           onClick={onStartReciting}
           className="group inline-flex items-center gap-3 px-8 py-4 border border-primary/50 text-accent hover:bg-primary/10 hover:border-primary transition-all rounded-full text-[11px] uppercase tracking-[0.35em]"
         >
-          <Mic size={14} className="text-primary group-hover:scale-110 transition-transform" />
-          Start Reciting
+          <BookOpen size={14} className="text-primary group-hover:scale-110 transition-transform" />
+          Continue Reading
         </button>
         <button
           onClick={onChooseSurah}
