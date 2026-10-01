@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, Lightbulb, RotateCcw } from "lucide-react";
-import MicButton from "@/components/MicButton";
+import { Eye, EyeOff, Lightbulb, Mic, RotateCcw, Square } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { alignSurah } from "@/lib/surah-matcher";
@@ -172,7 +171,13 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
         <button onClick={restart} aria-label="Restart" className="p-3 rounded-full border border-primary/20 text-muted-foreground hover:text-primary">
           <RotateCcw size={18} />
         </button>
-        <MicButton isListening={isListening} onToggle={toggleMic} />
+        <button
+          onClick={toggleMic}
+          aria-label={isListening ? "Stop" : "Start reciting"}
+          className={`w-16 h-16 rounded-full flex items-center justify-center bg-primary text-primary-foreground shadow-lg ${isListening ? "animate-pulse" : ""}`}
+        >
+          {isListening ? <Square size={20} /> : <Mic size={22} />}
+        </button>
         <button
           onClick={giveHint}
           disabled={mode !== "hidden"}

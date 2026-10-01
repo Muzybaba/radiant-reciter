@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Flame } from "lucide-react";
 import PageShell from "@/components/PageShell";
+import HifzStudio from "@/components/HifzStudio";
 import { surahs } from "@/data/surahs";
 
 interface HifzState {
@@ -62,8 +63,17 @@ const Hifz = () => {
     <PageShell
       eyebrow="Memorization"
       title="Hifz"
-      subtitle="Track what you have committed to memory, day by day."
+      subtitle="Recite from memory — words reveal as you say them."
     >
+      <HifzStudio
+        onComplete={(id) =>
+          setState((s) => ({
+            ...s,
+            memorized: s.memorized.includes(id) ? s.memorized : [...s.memorized, id],
+          }))
+        }
+      />
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-10">
         <Stat label="Memorized" value={`${done}/${total}`} />
