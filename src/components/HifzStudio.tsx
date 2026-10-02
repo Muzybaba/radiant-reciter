@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, Lightbulb, Mic, RotateCcw, Square } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Ear, Eye, EyeOff, Lightbulb, Mic, RotateCcw, Square } from "lucide-react";
 import { surahs } from "@/data/surahs";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { alignSurah } from "@/lib/surah-matcher";
@@ -38,6 +38,8 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
   const [playingHint, setPlayingHint] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const resumeRef = useRef(false);
+  const baseRef = useRef("");
+  const transcriptRef = useRef("");
 
   const fullSurah = surahs.find((s) => s.id === surahId)!;
   const surah = useMemo(
@@ -50,7 +52,11 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     return () => clearTimeout(id);
   }, [transcript]);
 
-  const onText = useCallback((t: string) => setTranscript(t), []);
+  const onText = useCallback((t: string) => {
+    const full = baseRef.current ? `${baseRef.current} ${t}` : t;
+    transcriptRef.current = full;
+    setTranscript(full);
+  }, []);
   const { isListening, start, stop, reset } = useScribeRecognition({
     language: "ara",
     onResult: onText,
@@ -94,6 +100,8 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
 
   const restart = () => {
     reset?.();
+    baseRef.current = "";
+    transcriptRef.current = "";
     setTranscript("");
     setSettled("");
     setHints(new Set());
@@ -153,6 +161,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     setPlayingHint(false);
     if (resumeRef.current) {
       resumeRef.current = false;
+      baseRef.current = transcriptRef.current;
       await start();
     }
   };
@@ -186,12 +195,31 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-5 text-xs text-muted-foreground">
+        <span className="uppercase tracking-[0.25em]">Ayat</span>
+        <select aria-label="From ayah" value={from} onChange={(e) => changeRange(Number(e.target.value), to)}
+          className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
+          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number}</option>)}
+        </select>
+        <span>to</span>
+        <select aria-label="To ayah" value={to} onChange={(e) => changeRange(from, Number(e.target.value))}
+          className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
+          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number}</option>)}
+        </select>
+        <button onClick={() => changeRange(1, fullSurah.verses.length)}
+          className="rounded-full border border-primary/20 px-3 py-1.5 hover:bg-primary/5 text-foreground">All</button>
+        <button onClick={() => changeRange(1, Math.min(3, fullSurah.verses.length))}
+          className="rounded-full border border-primary/20 px-3 py-1.5 hover:bg-primary/5 text-foreground">First 3</button>
+      </div>
+
+      <audio ref={audioRef} onEnded={onHintEnded} onError={() => { setPlayingHint(false); }} />
+
       <div dir="rtl" className="font-arabic text-2xl sm:text-3xl leading-[2.4] text-right space-y-3 mb-6">
         {surah.verses.map((v, vi) => {
           const words = v.text.split(/\s+/);
           const statuses = alignment.verseStatuses[vi] || [];
           return (
-            <p key={v.number}>
+            <p key={v.number} className={playingHint && vi === alignment.currentVerseIdx ? "rounded-lg bg-primary/10 animate-pulse" : ""}>
               {words.map((w, wi) => {
                 const s = statuses[wi] ?? "default";
                 const hinted = hints.has(`${vi}:${wi}`);
@@ -218,7 +246,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
           Surah complete — {stats.accuracy}% accuracy. MashaAllah.
         </p>
       )}
-      {error && <p className="text-center text-sm text-destructive mb-4">The microphone could not start. Please try again.</p>}
+      {error && <p className="text-center text-sm text-destructive mb-4">{error === "audio" ? "The recitation hint could not play. Please try again." : "The microphone could not start. Please try again."}</p>}
 
       <div className="flex items-center justify-center gap-6">
         <button onClick={restart} aria-label="Restart" className="p-3 rounded-full border border-primary/20 text-muted-foreground hover:text-primary">
@@ -238,6 +266,13 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
           className="p-3 rounded-full border border-primary/20 text-muted-foreground hover:text-primary disabled:opacity-30"
         >
           <Lightbulb size={18} />
+        </button>
+        <button
+          onClick={playAudioHint}
+          aria-label={playingHint ? "Stop listening hint" : "Hear this ayah"}
+          className={`p-3 rounded-full border border-primary/20 hover:text-primary ${playingHint ? "text-primary bg-primary/10" : "text-muted-foreground"}`}
+        >
+          <Ear size={18} />
         </button>
       </div>
     </section>
