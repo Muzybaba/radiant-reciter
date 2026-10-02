@@ -116,7 +116,45 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
   const changeSurah = (id: number) => {
     if (isListening) stop();
     setSurahId(id);
+    setFrom(1);
+    setTo(surahs.find((s) => s.id === id)!.verses.length);
     restart();
+  };
+
+  const changeRange = (f: number, t: number) => {
+    if (isListening) stop();
+    setFrom(Math.min(f, t));
+    setTo(Math.max(f, t));
+    restart();
+  };
+
+  const playAudioHint = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playingHint) {
+      audio.pause();
+      setPlayingHint(false);
+      return;
+    }
+    const verse = surah.verses[Math.min(alignment.currentVerseIdx ?? 0, surah.verses.length - 1)];
+    if (!verse) return;
+    // Pause the mic so the Qari's voice isn't recognized as the reciter's.
+    resumeRef.current = isListening;
+    if (isListening) stop();
+    audio.src = verseAudioUrl(surahId, verse.number);
+    setPlayingHint(true);
+    audio.play().catch(() => {
+      setPlayingHint(false);
+      setError("audio");
+    });
+  };
+
+  const onHintEnded = async () => {
+    setPlayingHint(false);
+    if (resumeRef.current) {
+      resumeRef.current = false;
+      await start();
+    }
   };
 
   return (
