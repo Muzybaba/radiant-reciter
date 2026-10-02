@@ -64,16 +64,26 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     onError: (m) => setError(m),
   });
 
-  const alignment = useMemo(
-    () =>
-      alignSurah(settled, surah, {
-        acceptedPairs: getAcceptedPairs(),
-        acceptedSlots: getAcceptedSlots(),
-        surahId,
-        emitWeak: true,
-      }),
-    [settled, surah, surahId]
-  );
+  const alignment = useMemo(() => {
+    const a = alignSurah(settled, surah, {
+      acceptedPairs: getAcceptedPairs(),
+      acceptedSlots: getAcceptedSlots(),
+      surahId,
+      emitWeak: true,
+    });
+    // The matcher marks the last word you said as "current" (pulsing), which
+    // hid it from scoring — so the final word of an ayah/surah never counted.
+    // If that word was actually heard, credit it immediately.
+    const verseStatuses = a.verseStatuses.map((v, vi) =>
+      v.map((s, wi) => {
+        if (s !== "current") return s;
+        const conf = a.confidences[vi]?.[wi] ?? 0;
+        if (a.alignedSpokenNorm[vi]?.[wi] == null) return s;
+        return conf >= 0.7 ? "correct" : conf >= 0.25 ? "weak" : "missed";
+      })
+    );
+    return { ...a, verseStatuses };
+  }, [settled, surah, surahId]);
 
   const stats = useMemo(() => {
     let correct = 0, missed = 0, weak = 0, total = 0;
