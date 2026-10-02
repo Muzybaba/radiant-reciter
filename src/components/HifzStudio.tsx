@@ -20,6 +20,12 @@ const statusClass = (s: WordStatus, hidden: boolean, hinted: boolean) => {
   }
 };
 
+// Verse 1 in our data is the Bismillah; real ayah N = verse.number - 1.
+const verseAudioUrl = (surahId: number, verseNumber: number) => {
+  const [s, a] = verseNumber === 1 ? [1, 1] : [surahId, verseNumber - 1];
+  return `https://everyayah.com/data/Alafasy_128kbps/${String(s).padStart(3, "0")}${String(a).padStart(3, "0")}.mp3`;
+};
+
 const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) => {
   const [surahId, setSurahId] = useState(surahs[0].id);
   const [mode, setMode] = useState<Mode>("hidden");
@@ -27,8 +33,17 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
   const [settled, setSettled] = useState("");
   const [hints, setHints] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [from, setFrom] = useState(1);
+  const [to, setTo] = useState(surahs[0].verses.length);
+  const [playingHint, setPlayingHint] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const resumeRef = useRef(false);
 
-  const surah = surahs.find((s) => s.id === surahId)!;
+  const fullSurah = surahs.find((s) => s.id === surahId)!;
+  const surah = useMemo(
+    () => ({ ...fullSurah, verses: fullSurah.verses.slice(from - 1, to) }),
+    [fullSurah, from, to]
+  );
 
   useEffect(() => {
     const id = setTimeout(() => setSettled(transcript), 300);
