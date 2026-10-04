@@ -104,6 +104,13 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
   const finished = stats.total > 0 && stats.done >= stats.total;
   const [ustadhSpeaking, setUstadhSpeaking] = useState(false);
   const [ustadhLine, setUstadhLine] = useState<string | null>(null);
+  const [voice, setVoice] = useState<"male" | "female">(
+    () => (localStorage.getItem("muraqaba.ustadhVoice") as "male" | "female") || "male"
+  );
+  const changeVoice = (v: "male" | "female") => {
+    setVoice(v);
+    localStorage.setItem("muraqaba.ustadhVoice", v);
+  };
 
   const playUrl = (url: string) =>
     new Promise<void>((resolve) => {
