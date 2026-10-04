@@ -131,18 +131,31 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
       const n = surah.verses[vi].number;
       return n === 1 ? "the Bismillah" : `Ayah ${n - 1}`;
     };
-    const text = mistakes.length === 0
-      ? `MashaAllah, beautiful. You recited ${fullSurah.name} without mistakes. Barakallahu feek.`
-      : `Good effort. In ${ayahLabel(mistakes[0].vi)}, pay attention to ${mistakes[0].words.slice(0, 3).join("، ")}. ` +
-        (mistakes.length > 1 ? `You also slipped in ${mistakes.slice(1, 3).map((m) => ayahLabel(m.vi)).join(" and ")}. ` : "") +
-        `Listen carefully, then try ${ayahLabel(mistakes[0].vi)} again.`;
-    setUstadhLine(text);
     setUstadhSpeaking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text, voice } });
-      if (error) throw error;
-      if (data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
-      if (mistakes.length) await playUrl(verseAudioUrl(surahId, surah.verses[mistakes[0].vi].number));
+      if (mistakes.length === 0) {
+        const text = `MashaAllah, beautiful. You recited ${fullSurah.name} without mistakes. Barakallahu feek.`;
+        setUstadhLine(text);
+        const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text, voice } });
+        if (error) throw error;
+        if (data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
+      } else {
+        // Walk through EVERY mistake, one ayah at a time — speak the
+        // correction, then play Alafasy for that ayah so it can be repeated.
+        for (const m of mistakes.slice(0, 4)) {
+          const text = `In ${ayahLabel(m.vi)}, pay attention to ${m.words.slice(0, 3).join("، ")}. Listen, then repeat.`;
+          setUstadhLine(text);
+          const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text, voice } });
+          if (!error && data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
+          await playUrl(verseAudioUrl(surahId, surah.verses[m.vi].number));
+        }
+        if (mistakes.length > 4) {
+          const text = `There were a few more slips. Let's go through them again next round.`;
+          setUstadhLine(text);
+          const { data } = await supabase.functions.invoke("ustadh-tts", { body: { text, voice } });
+          if (data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
+        }
+      }
     } catch (e) {
       console.error("Ustadh failed:", e);
     } finally {
@@ -315,12 +328,12 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
         <span className="uppercase tracking-[0.25em]">Ayat</span>
         <select aria-label="From ayah" value={from} onChange={(e) => changeRange(Number(e.target.value), to)}
           className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
-          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number}</option>)}
+          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
         </select>
         <span>to</span>
         <select aria-label="To ayah" value={to} onChange={(e) => changeRange(from, Number(e.target.value))}
           className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
-          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number}</option>)}
+          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
         </select>
         <button onClick={() => changeRange(1, fullSurah.verses.length)}
           className="rounded-full border border-primary/20 px-3 py-1.5 hover:bg-primary/5 text-foreground">All</button>
@@ -345,7 +358,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
                   </span>
                 );
               })}
-              <span className="text-primary/70 text-xl mx-1">﴿{v.number}﴾</span>
+              {v.number > 1 && <span className="text-primary/70 text-xl mx-1">﴿{v.number - 1}﴾</span>}
             </p>
           );
         })}
