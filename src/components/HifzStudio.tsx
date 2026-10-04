@@ -104,6 +104,13 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
   const finished = stats.total > 0 && stats.done >= stats.total;
   const [ustadhSpeaking, setUstadhSpeaking] = useState(false);
   const [ustadhLine, setUstadhLine] = useState<string | null>(null);
+  const [voice, setVoice] = useState<"male" | "female">(
+    () => (localStorage.getItem("muraqaba.ustadhVoice") as "male" | "female") || "male"
+  );
+  const changeVoice = (v: "male" | "female") => {
+    setVoice(v);
+    localStorage.setItem("muraqaba.ustadhVoice", v);
+  };
 
   const playUrl = (url: string) =>
     new Promise<void>((resolve) => {
@@ -132,7 +139,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     setUstadhLine(text);
     setUstadhSpeaking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text } });
+      const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text, voice } });
       if (error) throw error;
       if (data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
       if (mistakes.length) await playUrl(verseAudioUrl(surahId, surah.verses[mistakes[0].vi].number));
@@ -141,7 +148,50 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     } finally {
       setUstadhSpeaking(false);
     }
-  }, [alignment, surah, surahId, fullSurah.name]);
+  }, [alignment, surah, surahId, fullSurah.name, voice]);
+
+  // When the reciter pauses mid-ayah (~5s of silence), the Ustadh whispers
+  // the next word to jog their memory — like a teacher in a halaqah.
+  const lastWordRef = useRef("");
+  const whisperingRef = useRef(false);
+  const whisper = useCallback(async (word: string) => {
+    if (whisperingRef.current) return;
+    whisperingRef.current = true;
+    setUstadhSpeaking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ustadh-tts", {
+        body: { text: `...${word}`, voice },
+      });
+      if (!error && data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
+    } catch (e) {
+      console.error("Whisper failed:", e);
+    } finally {
+      setUstadhSpeaking(false);
+      whisperingRef.current = false;
+    }
+  }, [voice]);
+
+  useEffect(() => {
+    if (!isListening || finished || playingHint) return;
+    const id = setInterval(() => {
+      const { currentVerseIdx: vi, currentWordIdx: wi } = alignment;
+      if (vi == null || wi == null) return;
+      const status = alignment.verseStatuses[vi]?.[wi];
+      if (status !== "current" && status !== "default") return;
+      const word = surah.verses[vi]?.text.split(/\s+/)[wi];
+      if (!word) return;
+      // First sight of this word: mark it. Only whisper when the SAME word
+      // is still stuck on the next tick (~5s later) — a real pause.
+      if (word !== lastWordRef.current) {
+        lastWordRef.current = word;
+        return;
+      }
+      if (whisperingRef.current) return;
+      setUstadhLine(`...${word}`);
+      whisper(word);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [isListening, finished, playingHint, alignment, surah, whisper]);
 
   useEffect(() => {
     if (finished && isListening) {
@@ -158,6 +208,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     setTranscript("");
     setSettled("");
     setHints(new Set());
+    lastWordRef.current = "";
   };
 
   const toggleMic = async () => {
@@ -248,6 +299,15 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
             {mode === "hidden" ? <EyeOff size={14} /> : <Eye size={14} />}
             {mode === "hidden" ? "Hidden" : "Visible"}
           </button>
+          <select
+            value={voice}
+            onChange={(e) => changeVoice(e.target.value as "male" | "female")}
+            aria-label="Teacher voice"
+            className="rounded-lg border border-primary/20 bg-background px-3 py-2 text-xs text-foreground"
+          >
+            <option value="male">Ustadh ♂</option>
+            <option value="female">Ustadha ♀</option>
+          </select>
         </div>
       </div>
 
