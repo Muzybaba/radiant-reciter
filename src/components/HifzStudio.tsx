@@ -328,12 +328,12 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
         <span className="uppercase tracking-[0.25em]">Ayat</span>
         <select aria-label="From ayah" value={from} onChange={(e) => changeRange(Number(e.target.value), to)}
           className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
-          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number}</option>)}
+          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
         </select>
         <span>to</span>
         <select aria-label="To ayah" value={to} onChange={(e) => changeRange(from, Number(e.target.value))}
           className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
-          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number}</option>)}
+          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
         </select>
         <button onClick={() => changeRange(1, fullSurah.verses.length)}
           className="rounded-full border border-primary/20 px-3 py-1.5 hover:bg-primary/5 text-foreground">All</button>
@@ -358,7 +358,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
                   </span>
                 );
               })}
-              <span className="text-primary/70 text-xl mx-1">﴿{v.number}﴾</span>
+              {v.number > 1 && <span className="text-primary/70 text-xl mx-1">﴿{v.number - 1}﴾</span>}
             </p>
           );
         })}
