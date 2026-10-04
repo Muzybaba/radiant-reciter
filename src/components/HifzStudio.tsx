@@ -179,8 +179,14 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
       const status = alignment.verseStatuses[vi]?.[wi];
       if (status !== "current" && status !== "default") return;
       const word = surah.verses[vi]?.text.split(/\s+/)[wi];
-      if (!word || word === lastWordRef.current) return;
-      lastWordRef.current = word;
+      if (!word) return;
+      // First sight of this word: mark it. Only whisper when the SAME word
+      // is still stuck on the next tick (~5s later) — a real pause.
+      if (word !== lastWordRef.current) {
+        lastWordRef.current = word;
+        return;
+      }
+      if (whisperingRef.current) return;
       setUstadhLine(`...${word}`);
       whisper(word);
     }, 5000);
