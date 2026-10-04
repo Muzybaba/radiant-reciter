@@ -139,7 +139,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     setUstadhLine(text);
     setUstadhSpeaking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text } });
+      const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text, voice } });
       if (error) throw error;
       if (data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
       if (mistakes.length) await playUrl(verseAudioUrl(surahId, surah.verses[mistakes[0].vi].number));
@@ -148,7 +148,44 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     } finally {
       setUstadhSpeaking(false);
     }
-  }, [alignment, surah, surahId, fullSurah.name]);
+  }, [alignment, surah, surahId, fullSurah.name, voice]);
+
+  // When the reciter pauses mid-ayah (~5s of silence), the Ustadh whispers
+  // the next word to jog their memory — like a teacher in a halaqah.
+  const lastWordRef = useRef("");
+  const whisperingRef = useRef(false);
+  const whisper = useCallback(async (word: string) => {
+    if (whisperingRef.current) return;
+    whisperingRef.current = true;
+    setUstadhSpeaking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ustadh-tts", {
+        body: { text: `...${word}`, voice },
+      });
+      if (!error && data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
+    } catch (e) {
+      console.error("Whisper failed:", e);
+    } finally {
+      setUstadhSpeaking(false);
+      whisperingRef.current = false;
+    }
+  }, [voice]);
+
+  useEffect(() => {
+    if (!isListening || finished || playingHint) return;
+    const id = setInterval(() => {
+      const { currentVerseIdx: vi, currentWordIdx: wi } = alignment;
+      if (vi == null || wi == null) return;
+      const status = alignment.verseStatuses[vi]?.[wi];
+      if (status !== "current" && status !== "default") return;
+      const word = surah.verses[vi]?.text.split(/\s+/)[wi];
+      if (!word || word === lastWordRef.current) return;
+      lastWordRef.current = word;
+      setUstadhLine(`...${word}`);
+      whisper(word);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [isListening, finished, playingHint, alignment, surah, whisper]);
 
   useEffect(() => {
     if (finished && isListening) {
