@@ -162,8 +162,11 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
 
   const toggleMic = async () => {
     setError(null);
-    if (isListening) stop();
-    else {
+    if (isListening) {
+      stop();
+      if (stats.done > 0) runUstadh();
+    } else {
+      setUstadhLine(null);
       restart();
       await start();
     }
@@ -297,6 +300,11 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
       {finished && (
         <p className="text-center text-sm text-primary mb-4">
           Surah complete — {stats.accuracy}% accuracy. MashaAllah.
+        </p>
+      )}
+      {ustadhLine && (
+        <p className={`text-center text-sm italic text-foreground/80 mb-4 ${ustadhSpeaking ? "animate-pulse" : ""}`}>
+          Ustadh: “{ustadhLine}”
         </p>
       )}
       {error && <p className="text-center text-sm text-destructive mb-4">{error === "audio" ? "The recitation hint could not play. Please try again." : "The microphone could not start. Please try again."}</p>}
