@@ -9,12 +9,13 @@ Deno.serve(async (req) => {
   try {
     const apiKey = Deno.env.get('ELEVENLABS_API_KEY');
     if (!apiKey) return json({ error: 'ELEVENLABS_API_KEY is not configured' }, 500);
-    const { text } = await req.json();
+    const { text, voice } = await req.json();
     if (typeof text !== 'string' || !text.trim() || text.length > 1500) return json({ error: 'Invalid text' }, 400);
 
-    // George — calm, warm male voice suited to a teacher.
+    // George — calm, warm male teacher. Sarah — warm female teacher.
+    const voiceId = voice === 'female' ? 'EXAVITQu4vr4xnSDxMaL' : 'JBFqnCBsd6RMkjVDRZzb';
     const res = await fetch(
-      'https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb?output_format=mp3_44100_128',
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
       {
         method: 'POST',
         headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
