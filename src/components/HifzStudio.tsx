@@ -5,6 +5,7 @@ import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { alignSurah } from "@/lib/surah-matcher";
 import type { WordStatus } from "@/lib/arabic-compare";
 import { getAcceptedPairs, getAcceptedSlots } from "@/lib/corrections-store";
+import { supabase } from "@/integrations/supabase/client";
 
 type Mode = "hidden" | "visible";
 
@@ -101,12 +102,54 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
   }, [alignment]);
 
   const finished = stats.total > 0 && stats.done >= stats.total;
+  const [ustadhSpeaking, setUstadhSpeaking] = useState(false);
+  const [ustadhLine, setUstadhLine] = useState<string | null>(null);
+
+  const playUrl = (url: string) =>
+    new Promise<void>((resolve) => {
+      const a = new Audio(url);
+      a.onended = () => resolve();
+      a.onerror = () => resolve();
+      a.play().catch(() => resolve());
+    });
+
+  const runUstadh = useCallback(async () => {
+    const mistakes: { vi: number; words: string[] }[] = [];
+    alignment.verseStatuses.forEach((v, vi) => {
+      const words = surah.verses[vi].text.split(/\s+/);
+      const bad = v.map((s, wi) => (s === "missed" || s === "weak" ? words[wi] : null)).filter(Boolean) as string[];
+      if (bad.length) mistakes.push({ vi, words: bad });
+    });
+    const ayahLabel = (vi: number) => {
+      const n = surah.verses[vi].number;
+      return n === 1 ? "the Bismillah" : `Ayah ${n - 1}`;
+    };
+    const text = mistakes.length === 0
+      ? `MashaAllah, beautiful. You recited ${fullSurah.name} without mistakes. Barakallahu feek.`
+      : `Good effort. In ${ayahLabel(mistakes[0].vi)}, pay attention to ${mistakes[0].words.slice(0, 3).join("، ")}. ` +
+        (mistakes.length > 1 ? `You also slipped in ${mistakes.slice(1, 3).map((m) => ayahLabel(m.vi)).join(" and ")}. ` : "") +
+        `Listen carefully, then try ${ayahLabel(mistakes[0].vi)} again.`;
+    setUstadhLine(text);
+    setUstadhSpeaking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ustadh-tts", { body: { text } });
+      if (error) throw error;
+      if (data?.audioContent) await playUrl(`data:audio/mpeg;base64,${data.audioContent}`);
+      if (mistakes.length) await playUrl(verseAudioUrl(surahId, surah.verses[mistakes[0].vi].number));
+    } catch (e) {
+      console.error("Ustadh failed:", e);
+    } finally {
+      setUstadhSpeaking(false);
+    }
+  }, [alignment, surah, surahId, fullSurah.name]);
+
   useEffect(() => {
     if (finished && isListening) {
       stop();
       onComplete?.(surahId);
+      runUstadh();
     }
-  }, [finished, isListening, stop, onComplete, surahId]);
+  }, [finished, isListening, stop, onComplete, surahId, runUstadh]);
 
   const restart = () => {
     reset?.();
@@ -119,8 +162,11 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
 
   const toggleMic = async () => {
     setError(null);
-    if (isListening) stop();
-    else {
+    if (isListening) {
+      stop();
+      if (stats.done > 0) runUstadh();
+    } else {
+      setUstadhLine(null);
       restart();
       await start();
     }
@@ -254,6 +300,11 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
       {finished && (
         <p className="text-center text-sm text-primary mb-4">
           Surah complete — {stats.accuracy}% accuracy. MashaAllah.
+        </p>
+      )}
+      {ustadhLine && (
+        <p className={`text-center text-sm italic text-foreground/80 mb-4 ${ustadhSpeaking ? "animate-pulse" : ""}`}>
+          Ustadh: “{ustadhLine}”
         </p>
       )}
       {error && <p className="text-center text-sm text-destructive mb-4">{error === "audio" ? "The recitation hint could not play. Please try again." : "The microphone could not start. Please try again."}</p>}
