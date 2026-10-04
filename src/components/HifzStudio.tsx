@@ -208,6 +208,7 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     setTranscript("");
     setSettled("");
     setHints(new Set());
+    lastWordRef.current = "";
   };
 
   const toggleMic = async () => {
@@ -298,6 +299,15 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
             {mode === "hidden" ? <EyeOff size={14} /> : <Eye size={14} />}
             {mode === "hidden" ? "Hidden" : "Visible"}
           </button>
+          <select
+            value={voice}
+            onChange={(e) => changeVoice(e.target.value as "male" | "female")}
+            aria-label="Teacher voice"
+            className="rounded-lg border border-primary/20 bg-background px-3 py-2 text-xs text-foreground"
+          >
+            <option value="male">Ustadh ♂</option>
+            <option value="female">Ustadha ♀</option>
+          </select>
         </div>
       </div>
 
