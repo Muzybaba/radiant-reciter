@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ear, Eye, EyeOff, Lightbulb, Mic, RotateCcw, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { surahs } from "@/data/surahs";
 import { useScribeRecognition } from "@/hooks/use-scribe-recognition";
 import { alignSurah } from "@/lib/surah-matcher";
@@ -286,137 +287,152 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     }
   };
 
+  const progress = stats.total ? Math.round((stats.done / stats.total) * 100) : 0;
+
   return (
-    <section className="mb-12 rounded-3xl border border-primary/20 bg-card/70 p-5 sm:p-7 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.4em] text-primary">Recitation Studio</p>
-          <h2 className="font-display text-xl text-foreground mt-1">
-            {mode === "hidden" ? "Recite to reveal" : "Guided recitation"}
-          </h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={surahId}
-            onChange={(e) => changeSurah(Number(e.target.value))}
-            className="rounded-lg border border-primary/20 bg-background px-3 py-2 text-sm text-foreground"
-          >
-            {surahs.map((s) => (
-              <option key={s.id} value={s.id}>{s.id}. {s.name}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => setMode((m) => (m === "hidden" ? "visible" : "hidden"))}
-            className="flex items-center gap-1.5 rounded-lg border border-primary/20 px-3 py-2 text-xs text-foreground hover:bg-primary/5"
-          >
-            {mode === "hidden" ? <EyeOff size={14} /> : <Eye size={14} />}
-            {mode === "hidden" ? "Hidden" : "Visible"}
-          </button>
-          <select
-            value={voice}
-            onChange={(e) => changeVoice(e.target.value as "male" | "female")}
-            aria-label="Teacher voice"
-            className="rounded-lg border border-primary/20 bg-background px-3 py-2 text-xs text-foreground"
-          >
-            <option value="male">Ustadh ♂</option>
-            <option value="female">Ustadha ♀</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-5 text-xs text-muted-foreground">
-        <span className="uppercase tracking-[0.25em]">Ayat</span>
-        <select aria-label="From ayah" value={from} onChange={(e) => changeRange(Number(e.target.value), to)}
-          className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
-          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
-        </select>
-        <span>to</span>
-        <select aria-label="To ayah" value={to} onChange={(e) => changeRange(from, Number(e.target.value))}
-          className="rounded-lg border border-primary/20 bg-background px-2 py-1.5 text-sm text-foreground">
-          {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
-        </select>
-        <button onClick={() => changeRange(1, fullSurah.verses.length)}
-          className="rounded-full border border-primary/20 px-3 py-1.5 hover:bg-primary/5 text-foreground">All</button>
-        <button onClick={() => changeRange(1, Math.min(3, fullSurah.verses.length))}
-          className="rounded-full border border-primary/20 px-3 py-1.5 hover:bg-primary/5 text-foreground">First 3</button>
-      </div>
-
-      <audio ref={audioRef} onEnded={onHintEnded} onError={() => { setPlayingHint(false); }} />
-
-      <div dir="rtl" className="font-arabic text-2xl sm:text-3xl leading-[2.4] text-right space-y-3 mb-6">
-        {surah.verses.map((v, vi) => {
-          const words = v.text.split(/\s+/);
-          const statuses = alignment.verseStatuses[vi] || [];
-          return (
-            <p key={v.number} className={playingHint && vi === alignment.currentVerseIdx ? "rounded-lg bg-primary/10 animate-pulse" : ""}>
-              {words.map((w, wi) => {
-                const s = statuses[wi] ?? "default";
-                const hinted = hints.has(`${vi}:${wi}`);
-                return (
-                  <span key={wi} className={`inline-block px-1 mx-0.5 ${statusClass(s, mode === "hidden", hinted)}`}>
-                    {w}
-                  </span>
-                );
-              })}
-              {v.number > 1 && <span className="text-primary/70 text-xl mx-1">﴿{v.number - 1}﴾</span>}
+    <section className="relative mb-12 overflow-hidden rounded-[2rem] border border-primary/20 bg-card/60 shadow-[var(--shadow-subtle)]">
+      <div className="p-5 sm:p-8 lg:p-10">
+        <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-primary">Recitation Studio</p>
+            <h2 className="mt-1 font-display text-3xl text-foreground sm:text-4xl">
+              {mode === "hidden" ? "Recite to reveal" : "Guided recitation"}
+            </h2>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {isListening ? "Listening carefully — keep your natural pace" : "Begin when you feel ready"}
             </p>
-          );
-        })}
-      </div>
+          </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6 text-center">
-        <Mini label="Accuracy" value={`${stats.accuracy}%`} />
-        <Mini label="Words" value={`${stats.done}/${stats.total}`} />
-        <Mini label="Mistakes" value={String(stats.missed)} />
-      </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={surahId}
+              onChange={(e) => changeSurah(Number(e.target.value))}
+              aria-label="Choose surah"
+              className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
+            >
+              {surahs.map((s) => (
+                <option key={s.id} value={s.id}>{s.id}. {s.name}</option>
+              ))}
+            </select>
+            <Button
+              variant={mode === "hidden" ? "secondary" : "outline"}
+              onClick={() => setMode((m) => (m === "hidden" ? "visible" : "hidden"))}
+              className="h-10"
+            >
+              {mode === "hidden" ? <EyeOff /> : <Eye />}
+              {mode === "hidden" ? "Hidden" : "Visible"}
+            </Button>
+            <select
+              value={voice}
+              onChange={(e) => changeVoice(e.target.value as "male" | "female")}
+              aria-label="Teacher voice"
+              className="h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="male">Ustadh</option>
+              <option value="female">Ustadha</option>
+            </select>
+          </div>
+        </div>
 
-      {finished && (
-        <p className="text-center text-sm text-primary mb-4">
-          Surah complete — {stats.accuracy}% accuracy. MashaAllah.
+        <div className="mb-7 flex flex-wrap items-center gap-2 border-b border-primary/10 pb-5 text-xs text-muted-foreground">
+          <span className="mr-1 font-semibold uppercase tracking-[0.22em]">Ayat</span>
+          <select aria-label="From ayah" value={from} onChange={(e) => changeRange(Number(e.target.value), to)}
+            className="rounded-md border border-input bg-background px-2.5 py-1.5 font-medium text-foreground outline-none focus:ring-2 focus:ring-ring">
+            {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
+          </select>
+          <span>to</span>
+          <select aria-label="To ayah" value={to} onChange={(e) => changeRange(from, Number(e.target.value))}
+            className="rounded-md border border-input bg-background px-2.5 py-1.5 font-medium text-foreground outline-none focus:ring-2 focus:ring-ring">
+            {fullSurah.verses.map((v) => <option key={v.number} value={v.number}>{v.number === 1 ? "Bismillah" : v.number - 1}</option>)}
+          </select>
+          <span className="mx-1 h-4 w-px bg-primary/15" aria-hidden="true" />
+          <Button variant="ghost" size="sm" onClick={() => changeRange(1, fullSurah.verses.length)}>All</Button>
+          <Button variant="ghost" size="sm" onClick={() => changeRange(1, Math.min(3, fullSurah.verses.length))}>First 3</Button>
+        </div>
+
+        <audio ref={audioRef} onEnded={onHintEnded} onError={() => { setPlayingHint(false); }} />
+
+        <div className="relative mb-7 min-h-[250px] sm:min-h-[290px]">
+          <div className="absolute inset-x-0 top-0 h-1 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
+            <div className="h-full bg-primary transition-[width] duration-500 motion-reduce:transition-none" style={{ width: `${progress}%` }} />
+          </div>
+          <div dir="rtl" className="space-y-2 pt-9 text-right font-arabic text-2xl leading-[2.45] sm:px-4 sm:text-3xl lg:px-8 lg:text-4xl">
+            {surah.verses.map((v, vi) => {
+              const words = v.text.split(/\s+/);
+              const statuses = alignment.verseStatuses[vi] || [];
+              return (
+                <p key={v.number} className={`rounded-lg px-2 transition-colors ${playingHint && vi === alignment.currentVerseIdx ? "bg-primary/10" : ""}`}>
+                  {words.map((w, wi) => {
+                    const s = statuses[wi] ?? "default";
+                    const hinted = hints.has(`${vi}:${wi}`);
+                    return (
+                      <span key={wi} className={`inline-block px-1.5 mx-0.5 ${statusClass(s, mode === "hidden", hinted)}`}>
+                        {w}
+                      </span>
+                    );
+                  })}
+                  {v.number > 1 && <span className="mx-2 text-xl text-primary/70 sm:text-2xl">﴿{v.number - 1}﴾</span>}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mb-7 grid grid-cols-3 divide-x divide-primary/10 border-y border-primary/10 py-4 text-center">
+          <Mini label="Accuracy" value={`${stats.accuracy}%`} />
+          <Mini label="Words" value={`${stats.done}/${stats.total}`} />
+          <Mini label="Mistakes" value={String(stats.missed)} />
+        </div>
+
+        {finished && <p className="mb-4 text-center text-sm font-medium text-primary">Surah complete — {stats.accuracy}% accuracy. MashaAllah.</p>}
+        {ustadhLine && (
+          <div className={`mx-auto mb-5 max-w-2xl border-l-2 border-primary px-4 py-2 text-sm italic text-foreground/80 ${ustadhSpeaking ? "animate-pulse" : ""}`}>
+            <span className="not-italic font-semibold text-primary">{voice === "male" ? "Ustadh" : "Ustadha"}</span> — “{ustadhLine}”
+          </div>
+        )}
+        {error && <p className="mb-4 text-center text-sm text-destructive">{error === "audio" ? "The recitation hint could not play. Please try again." : "The microphone could not start. Please try again."}</p>}
+
+        <div className="flex items-center justify-center gap-3 sm:gap-5">
+          <Button onClick={restart} variant="ghost" size="icon" aria-label="Restart" title="Restart" className="rounded-full text-muted-foreground">
+            <RotateCcw />
+          </Button>
+          <div className="relative mx-1">
+            {isListening && <span className="absolute inset-0 animate-ping rounded-full bg-primary/20 motion-reduce:hidden" aria-hidden="true" />}
+            <Button
+              onClick={toggleMic}
+              aria-label={isListening ? "Stop and review" : "Start reciting"}
+              title={isListening ? "Stop and review" : "Start reciting"}
+              className="relative h-20 w-20 rounded-full shadow-[var(--shadow-gold)] transition-transform hover:scale-105 active:scale-95 motion-reduce:transform-none"
+            >
+              {isListening ? <Square className="!h-6 !w-6" /> : <Mic className="!h-7 !w-7" />}
+            </Button>
+          </div>
+          <Button onClick={giveHint} variant="ghost" size="icon" disabled={mode !== "hidden"} aria-label="Reveal next word" title="Reveal next word" className="rounded-full text-muted-foreground">
+            <Lightbulb />
+          </Button>
+          <Button
+            onClick={playAudioHint}
+            variant={playingHint ? "secondary" : "ghost"}
+            size="icon"
+            aria-label={playingHint ? "Stop listening hint" : "Hear this ayah"}
+            title={playingHint ? "Stop listening hint" : "Hear this ayah"}
+            className="rounded-full text-muted-foreground hover:text-primary"
+          >
+            <Ear />
+          </Button>
+        </div>
+        <p className="mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          {isListening ? "Tap to finish & review" : "Tap to begin"}
         </p>
-      )}
-      {ustadhLine && (
-        <p className={`text-center text-sm italic text-foreground/80 mb-4 ${ustadhSpeaking ? "animate-pulse" : ""}`}>
-          Ustadh: “{ustadhLine}”
-        </p>
-      )}
-      {error && <p className="text-center text-sm text-destructive mb-4">{error === "audio" ? "The recitation hint could not play. Please try again." : "The microphone could not start. Please try again."}</p>}
-
-      <div className="flex items-center justify-center gap-6">
-        <button onClick={restart} aria-label="Restart" className="p-3 rounded-full border border-primary/20 text-muted-foreground hover:text-primary">
-          <RotateCcw size={18} />
-        </button>
-        <button
-          onClick={toggleMic}
-          aria-label={isListening ? "Stop" : "Start reciting"}
-          className={`w-16 h-16 rounded-full flex items-center justify-center bg-primary text-primary-foreground shadow-lg ${isListening ? "animate-pulse" : ""}`}
-        >
-          {isListening ? <Square size={20} /> : <Mic size={22} />}
-        </button>
-        <button
-          onClick={giveHint}
-          disabled={mode !== "hidden"}
-          aria-label="Hint next word"
-          className="p-3 rounded-full border border-primary/20 text-muted-foreground hover:text-primary disabled:opacity-30"
-        >
-          <Lightbulb size={18} />
-        </button>
-        <button
-          onClick={playAudioHint}
-          aria-label={playingHint ? "Stop listening hint" : "Hear this ayah"}
-          className={`p-3 rounded-full border border-primary/20 hover:text-primary ${playingHint ? "text-primary bg-primary/10" : "text-muted-foreground"}`}
-        >
-          <Ear size={18} />
-        </button>
       </div>
     </section>
   );
 };
 
 const Mini = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-xl border border-primary/15 bg-background/60 py-3">
-    <p className="text-[9px] uppercase tracking-[0.3em] text-muted-foreground">{label}</p>
-    <p className="font-display text-lg text-foreground mt-1">{value}</p>
+  <div className="px-2">
+    <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
+    <p className="mt-1 font-display text-2xl text-foreground">{value}</p>
   </div>
 );
 
