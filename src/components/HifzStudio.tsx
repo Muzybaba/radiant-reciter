@@ -7,6 +7,7 @@ import { alignSurah } from "@/lib/surah-matcher";
 import type { WordStatus } from "@/lib/arabic-compare";
 import { getAcceptedPairs, getAcceptedSlots } from "@/lib/corrections-store";
 import { supabase } from "@/integrations/supabase/client";
+import type { HifzRange } from "@/lib/hifz-plan";
 
 type Mode = "hidden" | "visible";
 
@@ -28,22 +29,29 @@ const verseAudioUrl = (surahId: number, verseNumber: number) => {
   return `https://everyayah.com/data/Alafasy_128kbps/${String(s).padStart(3, "0")}${String(a).padStart(3, "0")}.mp3`;
 };
 
-const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) => {
-  const [surahId, setSurahId] = useState(surahs[0].id);
+interface HifzStudioProps {
+  onComplete?: (surahId: number) => void;
+  initialRange?: HifzRange;
+  onSessionComplete?: (session: { range: HifzRange; accuracy: number; totalWords: number }) => void;
+}
+
+const HifzStudio = ({ onComplete, initialRange, onSessionComplete }: HifzStudioProps) => {
+  const [surahId, setSurahId] = useState(initialRange?.surahId ?? surahs[0].id);
   const [mode, setMode] = useState<Mode>("hidden");
   const [transcript, setTranscript] = useState("");
   const [settled, setSettled] = useState("");
   const [hints, setHints] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [from, setFrom] = useState(1);
-  const [to, setTo] = useState(surahs[0].verses.length);
+  const [from, setFrom] = useState(initialRange?.fromVerse ?? 1);
+  const [to, setTo] = useState(initialRange?.toVerse ?? surahs[0].verses.length);
   const [playingHint, setPlayingHint] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const resumeRef = useRef(false);
   const baseRef = useRef("");
   const transcriptRef = useRef("");
+  const sessionRecordedRef = useRef(false);
 
-  const fullSurah = surahs.find((s) => s.id === surahId)!;
+  const fullSurah = surahs.find((s) => s.id === surahId) ?? surahs[0];
   const surah = useMemo(
     () => ({ ...fullSurah, verses: fullSurah.verses.slice(from - 1, to) }),
     [fullSurah, from, to]
@@ -103,6 +111,18 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
   }, [alignment]);
 
   const finished = stats.total > 0 && stats.done >= stats.total;
+  const reportPractice = useCallback(() => {
+    if (sessionRecordedRef.current || stats.done === 0) return;
+    const firstVerse = surah.verses[0]?.number;
+    const lastVerse = surah.verses[surah.verses.length - 1]?.number;
+    if (firstVerse == null || lastVerse == null) return;
+    sessionRecordedRef.current = true;
+    onSessionComplete?.({
+      range: { surahId, fromVerse: firstVerse, toVerse: lastVerse },
+      accuracy: stats.accuracy,
+      totalWords: stats.total,
+    });
+  }, [onSessionComplete, stats, surah, surahId]);
   const [ustadhSpeaking, setUstadhSpeaking] = useState(false);
   const [ustadhLine, setUstadhLine] = useState<string | null>(null);
   const [voice, setVoice] = useState<"male" | "female">(
@@ -211,9 +231,10 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     if (finished && isListening) {
       stop();
       onComplete?.(surahId);
+      reportPractice();
       runUstadh();
     }
-  }, [finished, isListening, stop, onComplete, surahId, runUstadh]);
+  }, [finished, isListening, stop, onComplete, surahId, reportPractice, runUstadh]);
 
   const restart = () => {
     reset?.();
@@ -223,13 +244,17 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     setSettled("");
     setHints(new Set());
     lastWordRef.current = "";
+    sessionRecordedRef.current = false;
   };
 
   const toggleMic = async () => {
     setError(null);
     if (isListening) {
       stop();
-      if (stats.done > 0) runUstadh();
+      if (stats.done > 0) {
+        reportPractice();
+        runUstadh();
+      }
     } else {
       setUstadhLine(null);
       restart();
@@ -246,7 +271,8 @@ const HifzStudio = ({ onComplete }: { onComplete?: (surahId: number) => void }) 
     if (isListening) stop();
     setSurahId(id);
     setFrom(1);
-    setTo(surahs.find((s) => s.id === id)!.verses.length);
+    const selectedSurah = surahs.find((s) => s.id === id);
+    setTo(selectedSurah?.verses[selectedSurah.verses.length - 1]?.number ?? 1);
     restart();
   };
 
