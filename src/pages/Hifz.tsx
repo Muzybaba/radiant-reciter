@@ -1,9 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Flame } from "lucide-react";
+import { ArrowLeft, Check, Flame } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import PageShell from "@/components/PageShell";
 import HifzStudio from "@/components/HifzStudio";
 import { surahs } from "@/data/surahs";
+import {
+  HIFZ_BLOCK_IDS,
+  HIFZ_BLOCK_INFO,
+  HIFZ_PLAN_STORAGE_KEY,
+  createDefaultHifzPlan,
+  isBlockDue,
+  isBlockCompleteToday,
+  localDateKey,
+  parseHifzPlan,
+  recordHifzSession,
+  summarizeHifzRetention,
+  type HifzBlockId,
+  type HifzPlanState,
+  type HifzRange,
+} from "@/lib/hifz-plan";
 
 interface HifzState {
   memorized: number[];
@@ -12,6 +28,14 @@ interface HifzState {
 }
 
 const KEY = "muraqaba.hifz";
+
+const readPlan = (): HifzPlanState => {
+  try {
+    return parseHifzPlan(localStorage.getItem(HIFZ_PLAN_STORAGE_KEY), surahs);
+  } catch {
+    return createDefaultHifzPlan(surahs);
+  }
+};
 
 const loadState = (): HifzState => {
   try {
@@ -34,8 +58,36 @@ const yesterday = () => {
 
 const Hifz = () => {
   const [state, setState] = useState<HifzState>(() => loadState());
+  const [plan, setPlan] = useState<HifzPlanState>(() => readPlan());
+  const [activeBlock, setActiveBlock] = useState<HifzBlockId | null>(null);
 
   useEffect(() => saveState(state), [state]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIFZ_PLAN_STORAGE_KEY, JSON.stringify(plan));
+    } catch {
+      // Private browsing or quota limits should not prevent a recitation session.
+    }
+  }, [plan]);
+
+  const todayKey = localDateKey();
+  const retention = useMemo(() => summarizeHifzRetention(plan.sessions, todayKey), [plan.sessions, todayKey]);
+
+  const updateRange = (blockId: HifzBlockId, range: HifzRange) => {
+    setPlan((current) => ({ ...current, ranges: { ...current.ranges, [blockId]: range } }));
+  };
+
+  const recordPractice = (blockId: HifzBlockId, result: { range: HifzRange; accuracy: number; totalWords: number }) => {
+    setPlan((current) => recordHifzSession(current, {
+      ...result.range,
+      blockId,
+      date: localDateKey(),
+      completedAt: new Date().toISOString(),
+      accuracy: result.accuracy,
+      totalWords: result.totalWords,
+    }));
+    setActiveBlock(null);
+  };
 
   const toggle = (id: number) => {
     setState((s) => ({
@@ -66,13 +118,107 @@ const Hifz = () => {
       subtitle="Recite from memory — words reveal as you say them."
     >
       <HifzStudio
+        key={activeBlock ?? "daily-studio"}
+        initialRange={activeBlock ? plan.ranges[activeBlock] : undefined}
         onComplete={(id) =>
           setState((s) => ({
             ...s,
             memorized: s.memorized.includes(id) ? s.memorized : [...s.memorized, id],
           }))
         }
+        onSessionComplete={(result) => {
+          if (activeBlock) recordPractice(activeBlock, result);
+        }}
       />
+
+      <section aria-labelledby="daily-plan-heading" className="mb-10 border-y border-primary/15 py-6">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-primary">A steady cycle</p>
+            <h2 id="daily-plan-heading" className="mt-1 font-display text-2xl text-foreground">Today’s Hifz plan</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">{retention.practicedDays}/7 days practiced · {retention.accuracy == null ? "No recent score" : `${retention.accuracy}% recent accuracy`}</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {HIFZ_BLOCK_IDS.map((blockId) => {
+            const range = plan.ranges[blockId];
+            const selectedSurah = surahs.find((item) => item.id === range.surahId) ?? surahs[0];
+            const completed = isBlockCompleteToday(plan.sessions, blockId, todayKey);
+            const due = isBlockDue(plan.sessions, blockId, todayKey);
+            const latestSession = [...plan.sessions].reverse().find((session) => session.blockId === blockId);
+            const latestAccuracy = latestSession?.accuracy;
+            return (
+              <article key={blockId} className="border border-primary/20 bg-card/50 p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-display text-xl text-foreground">{HIFZ_BLOCK_INFO[blockId].title}</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{HIFZ_BLOCK_INFO[blockId].subtitle}</p>
+                  </div>
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${completed ? "text-primary" : due ? "text-accent" : "text-muted-foreground"}`}>
+                    {completed ? "Done today" : due ? "Due today" : "On track"}
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-[1fr_1fr] gap-2">
+                  <label className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Surah
+                    <select
+                      aria-label={`${HIFZ_BLOCK_INFO[blockId].title} surah`}
+                      value={range.surahId}
+                      onChange={(event) => {
+                        const nextSurah = surahs.find((item) => item.id === Number(event.target.value));
+                        const firstAyah = nextSurah?.verses[1]?.number ?? nextSurah?.verses[0]?.number ?? 1;
+                        const lastAyah = nextSurah?.verses[nextSurah.verses.length - 1]?.number ?? firstAyah;
+                        updateRange(blockId, { surahId: Number(event.target.value), fromVerse: firstAyah, toVerse: Math.min(lastAyah, firstAyah + (blockId === "manzil" ? 2 : 1)) });
+                      }}
+                      className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {surahs.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  </label>
+                  {(["from", "to"] as const).map((edge) => (
+                    <label key={edge} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {edge === "from" ? "From ayah" : "To ayah"}
+                      <select
+                        aria-label={`${HIFZ_BLOCK_INFO[blockId].title} ${edge === "from" ? "starting" : "ending"} ayah`}
+                        value={edge === "from" ? range.fromVerse : range.toVerse}
+                        onChange={(event) => {
+                          const value = Number(event.target.value);
+                          const fromVerse = edge === "from" ? value : Math.min(range.fromVerse, value);
+                          const toVerse = edge === "to" ? value : Math.max(range.toVerse, value);
+                          updateRange(blockId, { ...range, fromVerse, toVerse });
+                        }}
+                        className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {selectedSurah.verses.filter((verse) => verse.number > 1).map((verse) => (
+                          <option key={verse.number} value={verse.number}>{verse.number - 1}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{selectedSurah.name} · ayat {range.fromVerse - 1}–{range.toVerse - 1}</span>
+                  <span>{latestAccuracy == null ? "No score yet" : `Last ${latestAccuracy}%`}</span>
+                </div>
+                <Button className="mt-4 w-full" onClick={() => setActiveBlock(blockId)}>
+                  {completed ? "Practice again" : "Start practice"}
+                </Button>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeBlock && (
+        <div className="mb-4">
+          <Button variant="ghost" onClick={() => setActiveBlock(null)}>
+            <ArrowLeft /> Back to today’s plan
+          </Button>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {HIFZ_BLOCK_INFO[activeBlock].title} · {surahs.find((item) => item.id === plan.ranges[activeBlock].surahId)?.name ?? "Surah"}
+          </p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-10">

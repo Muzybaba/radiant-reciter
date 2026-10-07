@@ -81,9 +81,13 @@ function isValidRange(value: unknown, surahs: SurahRangeInfo[]): value is HifzRa
     return false;
   }
   const surah = surahs.find((item) => item.id === range.surahId);
-  const first = surah?.verses[0]?.number;
-  const last = surah?.verses[surah.verses.length - 1]?.number;
-  return first != null && last != null && range.fromVerse! >= first && range.toVerse! <= last && range.fromVerse! <= range.toVerse!;
+  const verses = surah?.verses;
+  const first = verses?.[0]?.number;
+  const last = verses?.[verses.length - 1]?.number;
+  const fromVerse = range.fromVerse;
+  const toVerse = range.toVerse;
+  return first != null && last != null && fromVerse != null && toVerse != null
+    && fromVerse >= first && toVerse <= last && fromVerse <= toVerse;
 }
 
 function isValidSession(value: unknown, surahs: SurahRangeInfo[]): value is HifzPracticeSession {
